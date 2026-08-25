@@ -28,5 +28,5 @@ jobs:
       - run: dotnet build Murchalka.Deployment.slnx -c Release --no-restore
       - run: dotnet run --project tests/Murchalka.Deployment.Tests/Murchalka.Deployment.Tests.csproj -c Release --no-build --no-restore -- -reporter quiet
       - run: docker compose --env-file .env.example -f compose/compose.yaml config --quiet
-      - run: bash -n scripts/install-bundle.sh
-
+      - run: bash -n scripts/install-bundle.sh scripts/bootstrap.sh scripts/prepare-security.sh scripts/phase5-e2e.sh
+      - run: python3 -m py_compile scripts/coordinated-release.py

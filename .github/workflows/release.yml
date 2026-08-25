@@ -35,10 +35,12 @@ jobs:
       - run: dotnet build Murchalka.Deployment.slnx -c Release --no-restore
       - run: dotnet run --project tests/Murchalka.Deployment.Tests/Murchalka.Deployment.Tests.csproj -c Release --no-build --no-restore -- -reporter quiet
       - run: docker compose --env-file .env.example -f compose/compose.yaml config --quiet
+      - run: bash -n scripts/install-bundle.sh scripts/bootstrap.sh scripts/prepare-security.sh scripts/phase5-e2e.sh
+      - run: python3 -m py_compile scripts/coordinated-release.py
       - name: Package deployment
         run: |
           mkdir -p artifacts
-          tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner -czf "artifacts/murchalka-deployment-${{ steps.version.outputs.value }}.tar.gz" profiles bindings configuration compose scripts docs README.md SECURITY.md .env.example
+          tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner -czf "artifacts/murchalka-deployment-${{ steps.version.outputs.value }}.tar.gz" profiles bindings configuration compose scripts tools docs Directory.Build.props Directory.Packages.props NuGet.Config global.json README.md SECURITY.md .env.example
           (cd artifacts && sha256sum *.tar.gz > SHA256SUMS)
       - uses: actions/attest-build-provenance@v3
         with: { subject-path: 'artifacts/*.tar.gz' }

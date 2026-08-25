@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Murchalka.Deployment.Security</RootNamespace>
+    <AssemblyName>Murchalka.Deployment.Security</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Murchalka.ModuleProtocol.Json" />
+  </ItemGroup>
+</Project>

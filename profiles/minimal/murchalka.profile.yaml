@@ -1,22 +1,22 @@
 apiVersion: profiles.murchalka.dev/v1
 kind: RuntimeProfile
-metadata: { id: minimal-core, version: 0.1.0 }
+metadata: { id: minimal-core, version: 0.2.1 }
 modules:
   required:
-    - { id: dev.murchalka.storage-sqlite, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.secrets-local, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.people, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.character-identity, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.conversations, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.sessions, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.context, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.model-ollama, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.auth-local, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.authorization, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.audit-store, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.agent-ui, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.agent-runtime, version: ">=0.1.0 <0.2.0" }
-    - { id: dev.murchalka.client-realtime, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.storage-sqlite, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.secrets-local, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.people, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.character-identity, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.conversations, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.sessions, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.context, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.model-ollama, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.auth-local, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.authorization, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.audit-store, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.agent-ui, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.agent-runtime, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.client-realtime, version: ">=0.1.0 <0.2.99" }
   optional: []
 bindings:
   - consumer: { category: storage.records }
@@ -31,4 +31,3 @@ permissionsPolicy:
 activation:
   autoInstallMissingFromRegistry: false
   autoUpdateChannel: none
-

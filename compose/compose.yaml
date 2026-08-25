@@ -1,19 +1,49 @@
 name: murchalka-minimal
 services:
+  module-loader:
+    image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
+    user: "0"
+    entrypoint: [/bin/sh, -c]
+    command:
+      - >-
+        cp /bundles/*.murchalka /var/lib/murchalka/modules/inbox/ &&
+        chown -R "$${APP_UID}:$${APP_UID}" /var/lib/murchalka
+    read_only: true
+    volumes:
+      - runtime-state:/var/lib/murchalka
+      - ../runtime/modules/inbox:/bundles:ro
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE]
+    restart: "no"
   runtime:
     image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
-    command: ["--root", "/var/lib/murchalka", "--url", "http://127.0.0.1:5078"]
+    command:
+      - --root
+      - /var/lib/murchalka
+      - --url
+      - http://127.0.0.1:5078
+      - --installation
+      - minimal-core
+      - --bootstrap-bindings
+      - /etc/murchalka/bootstrap/minimal.bindings.yaml
+      - --bootstrap-configuration
+      - /etc/murchalka/bootstrap/configuration
     network_mode: host
     read_only: true
     tmpfs: [/tmp]
     volumes:
       - runtime-state:/var/lib/murchalka
-      - ../runtime/modules/inbox:/var/lib/murchalka/modules/inbox
+      - ../bindings/minimal.bindings.yaml:/etc/murchalka/bootstrap/minimal.bindings.yaml:ro
+      - ../configuration:/etc/murchalka/bootstrap/configuration:ro
+      - ../runtime/security/trusted-publishers.json:/var/lib/murchalka/configuration/trusted-publishers.json:ro
+      - ../runtime/security/grants:/var/lib/murchalka/configuration/grants:ro
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     restart: unless-stopped
     depends_on:
       ollama: { condition: service_started }
+      module-loader: { condition: service_completed_successfully }
   ollama:
     image: ${OLLAMA_IMAGE:?Pin OLLAMA_IMAGE in .env}
     network_mode: host
@@ -31,4 +61,3 @@ services:
 volumes:
   runtime-state: {}
   ollama-state: {}
-

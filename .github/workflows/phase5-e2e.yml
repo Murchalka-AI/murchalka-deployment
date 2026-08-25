@@ -1,0 +1,134 @@
+name: Phase 5 E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Coordinated release version without the v prefix
+        required: true
+        default: 0.2.1
+      ollama_model:
+        description: Ollama model used for the acceptance turn
+        required: true
+        default: llama3.2
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out deployment
+        uses: actions/checkout@v7
+        with: { persist-credentials: false }
+
+      - name: Check out coordinated Web shell
+        uses: actions/checkout@v7
+        with:
+          repository: Murchalka-AI/murchalka-web
+          ref: v${{ inputs.version }}
+          path: murchalka-web
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v6
+        with: { global-json-file: global.json }
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: murchalka-web/package-lock.json
+
+      - name: Authenticate to GitHub Packages
+        env: { PACKAGE_TOKEN: "${{ github.token }}" }
+        run: dotnet nuget update source murchalka --username "${GITHUB_ACTOR}" --password "${PACKAGE_TOKEN}" --store-password-in-clear-text --configfile NuGet.Config
+
+      - name: Restore acceptance tools
+        run: dotnet restore Murchalka.Deployment.slnx --configfile NuGet.Config
+
+      - name: Install browser acceptance dependencies
+        working-directory: murchalka-web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Download and verify coordinated module bundles
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p runtime/modules/inbox
+          repositories=(
+            murchalka-module-people
+            murchalka-module-character-identity
+            murchalka-module-conversations
+            murchalka-module-sessions
+            murchalka-module-agent-runtime
+            murchalka-module-context
+            murchalka-module-model-ollama
+            murchalka-module-auth-local
+            murchalka-module-authorization
+            murchalka-module-audit-store
+            murchalka-module-agent-ui
+            murchalka-module-protocol-client-realtime
+            murchalka-storage-sqlite
+            murchalka-module-secrets-local
+          )
+          for repository in "${repositories[@]}"; do
+            download="${RUNNER_TEMP}/${repository}"
+            mkdir -p "${download}"
+            gh release download "v${RELEASE_VERSION}" \
+              --repo "Murchalka-AI/${repository}" \
+              --pattern "*-${RELEASE_VERSION}-linux-x64.murchalka" \
+              --pattern SHA256SUMS \
+              --dir "${download}"
+            (cd "${download}" && sha256sum --check --ignore-missing SHA256SUMS)
+            cp "${download}"/*-linux-x64.murchalka runtime/modules/inbox/
+          done
+          test "$(find runtime/modules/inbox -name '*.murchalka' | wc -l)" -eq 14
+
+      - name: Prepare local trust and digest-bound grants
+        shell: bash
+        env:
+          PUBLISHER_PUBLIC_KEY: ${{ secrets.BUNDLE_PUBLISHER_PUBLIC_KEY_PEM }}
+          PUBLISHER_KEY_ID: ${{ secrets.BUNDLE_SIGNING_KEY_ID }}
+        run: |
+          test -n "${PUBLISHER_PUBLIC_KEY}"
+          test -n "${PUBLISHER_KEY_ID}"
+          publisher_key="${RUNNER_TEMP}/publisher-public.pem"
+          grant_key="${RUNNER_TEMP}/grant-private.pem"
+          umask 077
+          printf '%s\n' "${PUBLISHER_PUBLIC_KEY}" > "${publisher_key}"
+          openssl ecparam -name prime256v1 -genkey -noout -out "${grant_key}"
+          scripts/prepare-security.sh \
+            --bundles runtime/modules/inbox \
+            --publisher-key "${publisher_key}" \
+            --publisher-key-id "${PUBLISHER_KEY_ID}" \
+            --grant-private-key "${grant_key}" \
+            --output runtime/security
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Run released browser-to-audit acceptance
+        shell: bash
+        env:
+          E2E_PASSWORD: ${{ secrets.PHASE5_E2E_PASSWORD }}
+          MURCHALKA_OLLAMA_MODEL: ${{ inputs.ollama_model }}
+          MURCHALKA_WEB_ROOT: ${{ github.workspace }}/murchalka-web
+        run: |
+          test -n "${E2E_PASSWORD}"
+          cp .env.example .env
+          printf '%s\n' "${E2E_PASSWORD}" | scripts/phase5-e2e.sh --password-stdin
+
+      - name: Collect container logs on failure
+        if: failure()
+        run: docker compose --env-file .env.example -f compose/compose.yaml logs --no-color || true
