@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            Directory.Packages.props
+            **/*.csproj
+      - name: Authenticate to GitHub Packages
+        env: { PACKAGE_TOKEN: "${{ github.token }}" }
+        run: dotnet nuget update source murchalka --username "${GITHUB_ACTOR}" --password "${PACKAGE_TOKEN}" --store-password-in-clear-text --configfile NuGet.Config
+      - run: dotnet restore Murchalka.Deployment.slnx --configfile NuGet.Config
+      - run: dotnet format Murchalka.Deployment.slnx --verify-no-changes --no-restore
+      - run: dotnet build Murchalka.Deployment.slnx -c Release --no-restore
+      - run: dotnet run --project tests/Murchalka.Deployment.Tests/Murchalka.Deployment.Tests.csproj -c Release --no-build --no-restore -- -reporter quiet
+      - run: docker compose --env-file .env.example -f compose/compose.yaml config --quiet
+      - run: bash -n scripts/install-bundle.sh
+

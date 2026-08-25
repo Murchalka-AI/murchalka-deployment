@@ -1,0 +1,34 @@
+name: murchalka-minimal
+services:
+  runtime:
+    image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
+    command: ["--root", "/var/lib/murchalka", "--url", "http://127.0.0.1:5078"]
+    network_mode: host
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - runtime-state:/var/lib/murchalka
+      - ../runtime/modules/inbox:/var/lib/murchalka/modules/inbox
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+    depends_on:
+      ollama: { condition: service_started }
+  ollama:
+    image: ${OLLAMA_IMAGE:?Pin OLLAMA_IMAGE in .env}
+    network_mode: host
+    volumes: [ollama-state:/root/.ollama]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  web:
+    image: ${MURCHALKA_WEB_IMAGE:?Pin MURCHALKA_WEB_IMAGE in .env}
+    ports: ["127.0.0.1:8080:8080"]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+volumes:
+  runtime-state: {}
+  ollama-state: {}
+

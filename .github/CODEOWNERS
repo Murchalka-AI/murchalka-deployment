@@ -1,0 +1,5 @@
+/profiles/ @Murchalka-AI/platform-operations @Murchalka-AI/platform-security
+/bindings/ @Murchalka-AI/platform-operations @Murchalka-AI/platform-security
+/compose/ @Murchalka-AI/platform-operations
+/.github/workflows/ @Murchalka-AI/platform-security
+

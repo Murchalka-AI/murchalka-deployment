@@ -1,0 +1,34 @@
+apiVersion: profiles.murchalka.dev/v1
+kind: RuntimeProfile
+metadata: { id: minimal-core, version: 0.1.0 }
+modules:
+  required:
+    - { id: dev.murchalka.storage-sqlite, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.secrets-local, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.people, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.character-identity, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.conversations, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.sessions, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.context, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.model-ollama, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.auth-local, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.authorization, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.audit-store, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.agent-ui, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.agent-runtime, version: ">=0.1.0 <0.2.0" }
+    - { id: dev.murchalka.client-realtime, version: ">=0.1.0 <0.2.0" }
+  optional: []
+bindings:
+  - consumer: { category: storage.records }
+    provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records }
+  - consumer: { category: model.chat }
+    provider: { module: dev.murchalka.model-ollama, capability: model.ollama.chat }
+permissionsPolicy:
+  trustedPublishers: [dev.murchalka]
+  autoApprove:
+    dataClasses: [public, internal, personal, sensitive]
+    network: []
+activation:
+  autoInstallMissingFromRegistry: false
+  autoUpdateChannel: none
+

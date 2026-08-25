@@ -1,0 +1,37 @@
+apiVersion: bindings.murchalka.dev/v1
+kind: ModuleBindings
+metadata: { installation: minimal-core, revision: 1 }
+bindings:
+  - id: people-records
+    consumer: { module: dev.murchalka.people, requirement: records }
+    scope: { type: global }
+    provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records, instance: default }
+  - id: identity-records
+    consumer: { module: dev.murchalka.character-identity, requirement: records }
+    scope: { type: global }
+    provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records, instance: default }
+  - id: conversations-records
+    consumer: { module: dev.murchalka.conversations, requirement: records }
+    scope: { type: global }
+    provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records, instance: default }
+  - id: sessions-records
+    consumer: { module: dev.murchalka.sessions, requirement: records }
+    scope: { type: global }
+    provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records, instance: default }
+  - id: auth-records
+    consumer: { module: dev.murchalka.auth-local, requirement: records }
+    scope: { type: global }
+    provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records, instance: default }
+  - id: audit-records
+    consumer: { module: dev.murchalka.audit-store, requirement: records }
+    scope: { type: global }
+    provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records, instance: default }
+  - id: agent-model
+    consumer: { module: dev.murchalka.agent-runtime, requirement: model }
+    scope: { type: global }
+    provider: { module: dev.murchalka.model-ollama, capability: model.ollama.chat, instance: default }
+policies:
+  ambiguity: fail
+  missingScopedBinding: inheritParent
+  providerUnavailable: fail
+

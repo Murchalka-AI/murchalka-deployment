@@ -1,0 +1,46 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+  packages: read
+  id-token: write
+  attestations: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-dotnet@v6
+        with: { global-json-file: global.json }
+      - id: version
+        shell: bash
+        run: |
+          [[ "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
+          echo "value=${GITHUB_REF_NAME#v}" >> "${GITHUB_OUTPUT}"
+      - name: Reject an existing immutable release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release already exists and remains immutable." >&2
+            exit 1
+          fi
+      - name: Authenticate to GitHub Packages
+        env: { PACKAGE_TOKEN: "${{ github.token }}" }
+        run: dotnet nuget update source murchalka --username "${GITHUB_ACTOR}" --password "${PACKAGE_TOKEN}" --store-password-in-clear-text --configfile NuGet.Config
+      - run: dotnet restore Murchalka.Deployment.slnx --configfile NuGet.Config
+      - run: dotnet format Murchalka.Deployment.slnx --verify-no-changes --no-restore
+      - run: dotnet build Murchalka.Deployment.slnx -c Release --no-restore
+      - run: dotnet run --project tests/Murchalka.Deployment.Tests/Murchalka.Deployment.Tests.csproj -c Release --no-build --no-restore -- -reporter quiet
+      - run: docker compose --env-file .env.example -f compose/compose.yaml config --quiet
+      - name: Package deployment
+        run: |
+          mkdir -p artifacts
+          tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner -czf "artifacts/murchalka-deployment-${{ steps.version.outputs.value }}.tar.gz" profiles bindings configuration compose scripts docs README.md SECURITY.md .env.example
+          (cd artifacts && sha256sum *.tar.gz > SHA256SUMS)
+      - uses: actions/attest-build-provenance@v3
+        with: { subject-path: 'artifacts/*.tar.gz' }
+      - env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release create "${GITHUB_REF_NAME}" artifacts/* --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes --title "${GITHUB_REF_NAME}"
