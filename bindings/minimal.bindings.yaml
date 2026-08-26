@@ -1,6 +1,6 @@
 apiVersion: bindings.murchalka.dev/v1
 kind: ModuleBindings
-metadata: { installation: minimal-core, revision: 2 }
+metadata: { installation: minimal-core, revision: 1 }
 bindings:
   - id: people-records
     consumer: { module: dev.murchalka.people, requirement: records }

@@ -68,12 +68,33 @@ public sealed class ProfileSchemaTests
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.8", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.9", componentLock["deploymentTag"]!.GetValue<string>());
         Assert.Equal("v0.2.5", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
         Assert.Equal(17, lockedRepositories.Count);
         Assert.All(lockedModules, module => Assert.Matches("^v[0-9]+\\.[0-9]+\\.[0-9]+$", module!["tag"]!.GetValue<string>()));
+    }
+
+    /// <summary>Verifies that clean-install bootstrap documents start at revision one and use snapshot envelopes.</summary>
+    [Fact]
+    public void BootstrapDocumentsStartAtFirstRevision()
+    {
+        var root = RepositoryRootLocator.Find();
+        var bindings = StructuredDocument.Load(Path.Combine(root, "bindings", "minimal.bindings.yaml")).AsObject();
+        Assert.Equal(1, bindings["metadata"]!["revision"]!.GetValue<int>());
+
+        var configurationPaths = Directory.GetFiles(
+            Path.Combine(root, "configuration"),
+            "dev.murchalka.*.json",
+            SearchOption.TopDirectoryOnly);
+        Assert.NotEmpty(configurationPaths);
+        Assert.All(configurationPaths, path =>
+        {
+            var snapshot = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+            Assert.Equal(1, snapshot["revision"]!.GetValue<int>());
+            Assert.IsType<JsonObject>(snapshot["values"]);
+        });
     }
 
     /// <summary>Verifies that the Runtime container permits rootless Bubblewrap without restoring outer capabilities.</summary>

@@ -1,6 +1,6 @@
 apiVersion: profiles.murchalka.dev/v1
 kind: RuntimeProfile
-metadata: { id: minimal-core, version: 0.2.8 }
+metadata: { id: minimal-core, version: 0.2.9 }
 modules:
   required:
     - { id: dev.murchalka.storage-sqlite, version: ">=0.1.0 <0.2.99" }
