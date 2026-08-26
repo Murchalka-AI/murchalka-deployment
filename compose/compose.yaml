@@ -27,11 +27,19 @@ services:
     restart: "no"
   sandbox-probe:
     image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
-    entrypoint: [/usr/bin/bwrap]
+    entrypoint: [/usr/bin/unshare]
     command:
+      - --user
+      - --map-root-user
+      - --net
+      - --
+      - /usr/bin/bwrap
       - --die-with-parent
       - --new-session
       - --unshare-all
+      - --share-net
+      - --cap-drop
+      - ALL
       - --ro-bind
       - /
       - /
@@ -49,6 +57,8 @@ services:
     restart: "no"
   runtime:
     image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
+    environment:
+      MURCHALKA_LINUX_NETWORK_ISOLATION: unshare
     command:
       - --root
       - /var/lib/murchalka
