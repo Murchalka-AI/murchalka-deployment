@@ -14,14 +14,14 @@ on:
         type: string
     secrets:
       BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: { required: true }
-      BUNDLE_SIGNING_KEY_ID: { required: true }
+      MURCHALKA_BUNDLE_SIGNING_KEY_ID: { required: true }
       PHASE5_E2E_PASSWORD: { required: true }
   workflow_dispatch:
     inputs:
       tag:
         description: Coordinated release tag
         required: true
-        default: v0.2.5
+        default: v0.2.6
       ollama_model:
         description: Ollama model used for the acceptance turn
         required: true
@@ -107,7 +107,7 @@ jobs:
         shell: bash
         env:
           PUBLISHER_PUBLIC_KEY: ${{ secrets.BUNDLE_PUBLISHER_PUBLIC_KEY_PEM }}
-          PUBLISHER_KEY_ID: ${{ secrets.BUNDLE_SIGNING_KEY_ID }}
+          PUBLISHER_KEY_ID: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_ID }}
         run: |
           test -n "${PUBLISHER_PUBLIC_KEY}"
           test -n "${PUBLISHER_KEY_ID}"

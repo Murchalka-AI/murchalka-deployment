@@ -21,7 +21,7 @@ Install Chromium once with `cd ../murchalka-web && npx playwright install chromi
 
 The scenario starts the released containers, pulls the configured Ollama model, bootstraps the owner, drives the released React Web container through realtime, then uses the browser turn's exact conversation and session identifiers to verify durable messages, the closed Session, and product Audit Store evidence. Containers are stopped on exit; named volumes remain available for inspection.
 
-The `Phase 5 E2E` GitHub Actions workflow executes the same released-artifact gate on Linux. Deployment releases call it as a required job before publication. It requires repository secrets `BUNDLE_PUBLISHER_PUBLIC_KEY_PEM`, `BUNDLE_SIGNING_KEY_ID`, and `PHASE5_E2E_PASSWORD`; the permission-grant authority key is ephemeral for each run.
+The `Phase 5 E2E` GitHub Actions workflow executes the same released-artifact gate on Linux. Deployment releases call it as a required job before publication. It requires Actions secrets `BUNDLE_PUBLISHER_PUBLIC_KEY_PEM`, `MURCHALKA_BUNDLE_SIGNING_KEY_ID`, and `PHASE5_E2E_PASSWORD`; the private bundle-signing key is never exposed to Deployment, and the permission-grant authority key is ephemeral for each run.
 
 ## Coordinated interactive release
 

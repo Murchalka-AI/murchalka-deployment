@@ -16,7 +16,10 @@ jobs:
     with:
       tag: ${{ github.ref_name }}
       ollama_model: llama3.2
-    secrets: inherit
+    secrets:
+      BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: ${{ secrets.BUNDLE_PUBLISHER_PUBLIC_KEY_PEM }}
+      MURCHALKA_BUNDLE_SIGNING_KEY_ID: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_ID }}
+      PHASE5_E2E_PASSWORD: ${{ secrets.PHASE5_E2E_PASSWORD }}
   release:
     needs: phase5-acceptance
     runs-on: ubuntu-latest
