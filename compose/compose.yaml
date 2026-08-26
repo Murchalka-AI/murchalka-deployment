@@ -13,7 +13,8 @@ services:
         cp /security/admin-token /var/lib/murchalka/configuration/admin-token &&
         cp /security/trusted-publishers.json /var/lib/murchalka/configuration/trusted-publishers.json &&
         cp -R /security/grants/. /var/lib/murchalka/configuration/grants/ &&
-        chmod -R u=rwX,go= /var/lib/murchalka/configuration &&
+        chmod 0600 /var/lib/murchalka/configuration/admin-token /var/lib/murchalka/configuration/trusted-publishers.json &&
+        chmod -R u=rwX,go= /var/lib/murchalka/configuration/grants &&
         chown -R "$${APP_UID}:$${APP_UID}" /var/lib/murchalka
     read_only: true
     volumes:

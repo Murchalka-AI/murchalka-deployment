@@ -11,7 +11,17 @@ web_root="$(cd -- "${MURCHALKA_WEB_ROOT:-${repository_root}/../murchalka-web}" &
 compose=(docker compose --env-file "${repository_root}/.env" -f "${repository_root}/compose/compose.yaml")
 password_file="$(mktemp)"
 evidence_file="$(mktemp)"
-trap 'rm -f -- "${password_file}" "${evidence_file}"; "${compose[@]}" down >/dev/null 2>&1 || true' EXIT
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if [[ "${status}" -ne 0 ]]; then
+    "${compose[@]}" logs --no-color >&2 || true
+  fi
+  rm -f -- "${password_file}" "${evidence_file}"
+  "${compose[@]}" down >/dev/null 2>&1 || true
+  exit "${status}"
+}
+trap cleanup EXIT
 chmod 0600 "${password_file}"
 chmod 0600 "${evidence_file}"
 IFS= read -r password
@@ -48,12 +58,10 @@ for attempt in {1..180}; do
     break
   fi
   if [[ "$(docker inspect --format '{{.RestartCount}}' "${runtime_container}")" -gt 0 ]]; then
-    "${compose[@]}" logs runtime >&2
     echo "Runtime restarted before becoming ready." >&2
     exit 1
   fi
   if [[ "${attempt}" -eq 180 ]]; then
-    "${compose[@]}" logs runtime >&2
     echo "Runtime did not become ready." >&2
     exit 1
   fi
@@ -65,7 +73,6 @@ for attempt in {1..60}; do
     break
   fi
   if [[ "${attempt}" -eq 60 ]]; then
-    "${compose[@]}" logs web >&2
     echo "Released Web container did not become ready." >&2
     exit 1
   fi
