@@ -1,6 +1,6 @@
 apiVersion: bindings.murchalka.dev/v1
 kind: ModuleBindings
-metadata: { installation: minimal-core, revision: 1 }
+metadata: { installation: minimal-core, revision: 2 }
 bindings:
   - id: people-records
     consumer: { module: dev.murchalka.people, requirement: records }
@@ -29,9 +29,12 @@ bindings:
   - id: agent-model
     consumer: { module: dev.murchalka.agent-runtime, requirement: model }
     scope: { type: global }
+    provider: { module: dev.murchalka.model-router-basic, capability: model.router.chat, instance: default }
+  - id: router-provider
+    consumer: { module: dev.murchalka.model-router-basic, requirement: provider }
+    scope: { type: global }
     provider: { module: dev.murchalka.model-ollama, capability: model.ollama.chat, instance: default }
 policies:
   ambiguity: fail
   missingScopedBinding: inheritParent
   providerUnavailable: fail
-

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Net.WebSockets;
 using System.Text.Json;
 
@@ -19,11 +20,16 @@ internal static class Program
             var runtimeUri = LoopbackUri(options.GetValueOrDefault("runtime", "http://127.0.0.1:5078"), "http");
             var realtimeUri = LoopbackUri(options.GetValueOrDefault("realtime", "ws://127.0.0.1:5080/v1/realtime"), "ws");
             var username = options.GetValueOrDefault("username", "owner");
+            var adminTokenPath = options.GetValueOrDefault("admin-token-file")
+                ?? throw new ArgumentException("--admin-token-file is required.");
+            var adminToken = (await File.ReadAllTextAsync(adminTokenPath).ConfigureAwait(false)).Trim();
+            if (adminToken.Length < 43) throw new InvalidDataException("The administrative token file is invalid.");
+            var evidencePath = options.GetValueOrDefault("evidence");
             var password = await Console.In.ReadLineAsync().ConfigureAwait(false);
             if (string.IsNullOrEmpty(password)) throw new InvalidDataException("A password must be supplied on standard input.");
 
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            await RunAsync(runtimeUri, realtimeUri, username, password, timeout.Token).ConfigureAwait(false);
+            await RunAsync(runtimeUri, realtimeUri, username, password, adminToken, evidencePath, timeout.Token).ConfigureAwait(false);
             Console.WriteLine("Phase 5 acceptance passed: realtime auth, Agent UI, session, agent, persisted history, and audit evidence are healthy.");
             return 0;
         }
@@ -34,23 +40,29 @@ internal static class Program
         }
     }
 
-    private static async Task RunAsync(Uri runtimeUri, Uri realtimeUri, string username, string password, CancellationToken cancellationToken)
+    private static async Task RunAsync(Uri runtimeUri, Uri realtimeUri, string username, string password, string adminToken, string? evidencePath, CancellationToken cancellationToken)
     {
-        var conversationId = "acceptance-" + Guid.NewGuid().ToString("N");
-        var turnId = "acceptance-turn-" + Guid.NewGuid().ToString("N");
+        string conversationId;
         string sessionId;
-        using (var socket = new ClientWebSocket())
+        if (evidencePath is not null)
         {
+            var evidence = JsonSerializer.Deserialize<JsonElement>(await File.ReadAllTextAsync(evidencePath, cancellationToken).ConfigureAwait(false));
+            conversationId = RequiredString(evidence, "conversationId");
+            sessionId = RequiredString(evidence, "sessionId");
+        }
+        else
+        {
+            conversationId = "acceptance-" + Guid.NewGuid().ToString("N");
+            var turnId = "acceptance-turn-" + Guid.NewGuid().ToString("N");
+            using var socket = new ClientWebSocket();
             await socket.ConnectAsync(realtimeUri, cancellationToken).ConfigureAwait(false);
             await SendAsync(socket, new { type = "authenticate", username, password }, cancellationToken).ConfigureAwait(false);
             RequireType(await ReceiveAsync(socket, cancellationToken).ConfigureAwait(false), "authenticated");
-
             await SendAsync(socket, new { type = "ui.get", conversationId }, cancellationToken).ConfigureAwait(false);
             var ui = await ReceiveAsync(socket, cancellationToken).ConfigureAwait(false);
             RequireType(ui, "ui.document");
             if (!ui.TryGetProperty("document", out var document) || document.ValueKind != JsonValueKind.Object)
                 throw new InvalidDataException("Agent UI did not return a document.");
-
             await SendAsync(socket, new { type = "turn", conversationId, text = "Reply with one short greeting.", idempotencyKey = turnId }, cancellationToken).ConfigureAwait(false);
             var turn = await ReceiveAsync(socket, cancellationToken).ConfigureAwait(false);
             RequireType(turn, "turn.completed");
@@ -61,6 +73,7 @@ internal static class Program
         }
 
         using var http = new HttpClient { BaseAddress = runtimeUri, Timeout = TimeSpan.FromSeconds(30) };
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
         var history = await InvokeAsync(http, "conversations.history", new { operation = "list", conversationId, limit = 10 }, cancellationToken).ConfigureAwait(false);
         var roles = history.GetProperty("messages").EnumerateArray().Select(value => value.GetProperty("role").GetString()).ToArray();
         if (!roles.Contains("user", StringComparer.Ordinal) || !roles.Contains("assistant", StringComparer.Ordinal))
@@ -125,12 +138,12 @@ internal static class Program
 
     private static Dictionary<string, string> ParseOptions(string[] args)
     {
-        if (args.Length % 2 != 0) throw new ArgumentException("Usage: [--runtime URL] [--realtime URL] [--username NAME], with password on standard input.");
+        if (args.Length % 2 != 0) throw new ArgumentException("Usage: [--runtime URL] [--realtime URL] [--username NAME] --admin-token-file PATH, with password on standard input.");
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var index = 0; index < args.Length; index += 2)
         {
             var name = args[index];
-            if (name is not ("--runtime" or "--realtime" or "--username") || !result.TryAdd(name[2..], args[index + 1]))
+            if (name is not ("--runtime" or "--realtime" or "--username" or "--admin-token-file" or "--evidence") || !result.TryAdd(name[2..], args[index + 1]))
                 throw new ArgumentException($"Unknown or duplicate option '{name}'.");
         }
 

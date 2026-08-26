@@ -5,13 +5,25 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import os
 from pathlib import Path
 import stat
 import subprocess
 import sys
 import tempfile
-from urllib.parse import urlparse
+import time
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlparse
+from urllib.request import Request, urlopen
+
+
+PACKAGE_RELEASE_WAVES = {
+    "murchalka-module-protocol": 0,
+    "murchalka-module-sdk": 1,
+    "murchalka-deployment": 3,
+}
+GITHUB_API_VERSION = "2026-03-10"
 
 
 def run_git(
@@ -128,6 +140,172 @@ def normalize_github_url(remote_url: str) -> str:
     return remote_url
 
 
+def github_repository_coordinates(remote_url: str) -> tuple[str, str]:
+    """Extract the GitHub owner and repository name from a normalized URL."""
+    parsed = urlparse(remote_url)
+    parts = parsed.path.strip("/").removesuffix(".git").split("/")
+    if parsed.hostname != "github.com" or len(parts) != 2 or not all(parts):
+        raise ValueError(f"Не удалось определить GitHub repository из URL: {remote_url}")
+    return parts[0], parts[1]
+
+
+def release_wave(repository: Path) -> int:
+    """Return the coordinated package-dependency release wave."""
+    return PACKAGE_RELEASE_WAVES.get(repository.name, 2)
+
+
+def load_deployment_component_releases(
+    deployment_repository: Path,
+    expected_deployment_tag: str,
+) -> dict[str, str]:
+    """Load and validate repository releases pinned by the deployment component lock."""
+    lock_path = deployment_repository / "releases" / "minimal-core.lock.json"
+    try:
+        payload = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exception:
+        raise RuntimeError(
+            f"Не удалось прочитать component lock {lock_path}: {exception}"
+        ) from exception
+
+    if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
+        raise RuntimeError("Component lock имеет неподдерживаемую schemaVersion.")
+    if payload.get("deploymentTag") != expected_deployment_tag:
+        raise RuntimeError(
+            "Component lock предназначен для "
+            f"{payload.get('deploymentTag')}, а выбран тег {expected_deployment_tag}."
+        )
+
+    components: list[object] = [payload.get("runtime"), payload.get("web")]
+    modules = payload.get("modules")
+    if not isinstance(modules, list) or not modules:
+        raise RuntimeError("Component lock не содержит список модулей.")
+    components.extend(modules)
+
+    releases: dict[str, str] = {}
+    for component in components:
+        if not isinstance(component, dict):
+            raise RuntimeError("Component lock содержит некорректную запись компонента.")
+        repository = component.get("repository")
+        tag = component.get("tag")
+        if not isinstance(repository, str) or not repository.strip():
+            raise RuntimeError("Component lock содержит компонент без repository.")
+        if (
+            not isinstance(tag, str)
+            or not tag.startswith("v")
+            or any(character.isspace() for character in tag)
+        ):
+            raise RuntimeError(f"Component lock содержит некорректный тег для {repository}.")
+        if repository in releases:
+            raise RuntimeError(f"Component lock содержит дубликат repository: {repository}.")
+        releases[repository] = tag
+    return releases
+
+
+def github_release(
+    remote_url: str,
+    tag: str,
+    token: str,
+) -> dict[str, object] | None:
+    """Return a published GitHub Release, or None while it does not exist."""
+    owner, repository = github_repository_coordinates(remote_url)
+    url = (
+        f"https://api.github.com/repos/{quote(owner, safe='')}/"
+        f"{quote(repository, safe='')}/releases/tags/{quote(tag, safe='')}"
+    )
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "murchalka-coordinated-release",
+            "X-GitHub-Api-Version": GITHUB_API_VERSION,
+        },
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            payload = json.load(response)
+    except HTTPError as exception:
+        if exception.code == 404:
+            return None
+        detail = exception.read().decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"GitHub API вернул HTTP {exception.code}: {detail or exception.reason}"
+        ) from exception
+    except URLError as exception:
+        raise RuntimeError(f"GitHub API недоступен: {exception.reason}") from exception
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("GitHub API вернул неожиданный ответ для Release.")
+    if payload.get("draft") or not payload.get("published_at"):
+        return None
+    return payload
+
+
+def github_token_can_push(remote_url: str, token: str) -> bool:
+    """Check repository push permission without creating a commit or reference."""
+    owner, repository = github_repository_coordinates(remote_url)
+    url = (
+        f"https://api.github.com/repos/{quote(owner, safe='')}/"
+        f"{quote(repository, safe='')}"
+    )
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "murchalka-coordinated-release",
+            "X-GitHub-Api-Version": GITHUB_API_VERSION,
+        },
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            payload = json.load(response)
+    except HTTPError as exception:
+        detail = exception.read().decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"GitHub API вернул HTTP {exception.code}: {detail or exception.reason}"
+        ) from exception
+    except URLError as exception:
+        raise RuntimeError(f"GitHub API недоступен: {exception.reason}") from exception
+    permissions = payload.get("permissions") if isinstance(payload, dict) else None
+    return isinstance(permissions, dict) and permissions.get("push") is True
+
+
+def wait_for_package_release(
+    repository: Path,
+    remote_url: str,
+    tag: str,
+    token: str,
+    timeout_seconds: int,
+    poll_interval_seconds: int,
+) -> None:
+    """Wait until the package-producing workflow publishes its GitHub Release."""
+    deadline = time.monotonic() + timeout_seconds
+    next_progress = 0.0
+    while True:
+        release = github_release(remote_url, tag, token)
+        if release is not None:
+            page = release.get("html_url")
+            suffix = f": {page}" if isinstance(page, str) else "."
+            print(f"{repository.name}: Release {tag} опубликован{suffix}")
+            return
+
+        now = time.monotonic()
+        if now >= deadline:
+            raise RuntimeError(
+                f"Release {tag} не появился за {timeout_seconds} секунд. "
+                "Проверьте release workflow в GitHub Actions."
+            )
+        if now >= next_progress:
+            remaining = max(1, round(deadline - now))
+            print(
+                f"{repository.name}: ожидаю публикацию пакетов для {tag} "
+                f"(осталось до timeout: {remaining} с)..."
+            )
+            next_progress = now + 30
+        time.sleep(min(poll_interval_seconds, max(0.1, deadline - now)))
+
+
 def create_askpass(directory: Path) -> Path:
     """Create a credential helper that reads the token only from process environment."""
     path = directory / "git-askpass.sh"
@@ -217,9 +395,42 @@ def preflight_repository(
     """Validate credentials and release invariants without changing the repository."""
     branch = current_branch(repository)
     validate_tag(repository, tag)
+    remote_reference = run_git(
+        repository,
+        "check-ref-format",
+        f"refs/remotes/{remote_name}/{branch}",
+        check=False,
+        capture=True,
+    )
+    if remote_reference.returncode != 0:
+        raise ValueError(f"Некорректное имя remote или ветки: {remote_name}/{branch}")
     remote_url = normalize_github_url(
         captured_git(repository, "remote", "get-url", "--push", remote_name)
     )
+
+    head_result = run_git(repository, "rev-parse", "--verify", "HEAD", check=False, capture=True)
+    if head_result.returncode != 0:
+        if not has_changes:
+            raise RuntimeError("В репозитории нет первого коммита и нет изменений для его создания.")
+        remote_branch = run_git(
+            repository,
+            "ls-remote",
+            "--heads",
+            remote_url,
+            f"refs/heads/{branch}",
+            check=False,
+            capture=True,
+            authentication=authentication,
+        )
+        if remote_branch.returncode != 0:
+            raise RuntimeError(remote_branch.stderr.strip() or "Не удалось проверить удалённую ветку.")
+        if remote_branch.stdout.strip():
+            raise RuntimeError("Удалённая ветка уже существует; сначала синхронизируйте новый локальный репозиторий.")
+        if not github_token_can_push(remote_url, authentication[1]):
+            raise RuntimeError("GitHub token не имеет права push в новый репозиторий.")
+        if remote_tag_commit(repository, remote_url, tag, authentication) is not None:
+            raise RuntimeError(f"Удалённый тег {tag} уже существует до первого коммита.")
+        return branch, remote_url
 
     print(f"{repository.name}: проверка права push в {branch}")
     dry_run = run_git(
@@ -258,6 +469,7 @@ def publish_repository(
     commit_message: str,
     tag: str,
     branch: str,
+    remote_name: str,
     remote_url: str,
     authentication: tuple[Path, str],
 ) -> None:
@@ -279,6 +491,7 @@ def publish_repository(
         f"HEAD:refs/heads/{branch}",
         authentication=authentication,
     )
+    run_git(repository, "update-ref", f"refs/remotes/{remote_name}/{branch}", "HEAD")
 
     head = captured_git(repository, "rev-parse", "HEAD")
     published_commit = remote_tag_commit(repository, remote_url, tag, authentication)
@@ -312,6 +525,18 @@ def parse_arguments() -> argparse.Namespace:
         default=default_root,
         help=f"Папка с репозиториями (по умолчанию: {default_root})",
     )
+    parser.add_argument(
+        "--release-timeout",
+        type=int,
+        default=3600,
+        help="Сколько секунд ждать публикацию релизов между этапами (по умолчанию: 3600)",
+    )
+    parser.add_argument(
+        "--poll-interval",
+        type=int,
+        default=10,
+        help="Интервал проверки GitHub Release в секундах (по умолчанию: 10)",
+    )
     return parser.parse_args()
 
 
@@ -321,6 +546,9 @@ def main() -> int:
     root = arguments.root.expanduser().resolve()
     if not root.is_dir():
         print(f"Папка не найдена: {root}", file=sys.stderr)
+        return 2
+    if arguments.release_timeout <= 0 or arguments.poll_interval <= 0:
+        print("Timeout и poll interval должны быть положительными.", file=sys.stderr)
         return 2
 
     repositories = discover_repositories(root)
@@ -353,12 +581,42 @@ def main() -> int:
         return 0
 
     commit_message = required_input("Текст коммита: ")
-    tag = required_input("Имя тега, например v0.2.1: ")
+    tag = required_input("Имя тега, например v0.2.5: ")
     remote_name = input("Имя remote [origin]: ").strip() or "origin"
     token = getpass.getpass("GitHub token (ввод скрыт): ").strip()
     if not token:
         print("Токен не может быть пустым.", file=sys.stderr)
         return 2
+
+    selected_names = {repository.name for repository, _ in selected}
+    deployment_requirements: dict[str, str] = {}
+    if "murchalka-deployment" in selected_names:
+        deployment_repository = next(
+            repository for repository, _ in selected if repository.name == "murchalka-deployment"
+        )
+        try:
+            deployment_requirements = load_deployment_component_releases(
+                deployment_repository,
+                tag,
+            )
+        except RuntimeError as exception:
+            del token
+            print(f"ОШИБКА COMPONENT LOCK: {exception}", file=sys.stderr)
+            return 1
+
+        incompatible_selections = sorted(
+            f"{name} (lock: {required_tag}, выбран: {tag})"
+            for name, required_tag in deployment_requirements.items()
+            if name in selected_names and required_tag != tag
+        )
+        if incompatible_selections:
+            del token
+            print(
+                "Deployment component lock не позволяет выпускать выбранные "
+                "репозитории под другим тегом: " + ", ".join(incompatible_selections),
+                file=sys.stderr,
+            )
+            return 1
 
     succeeded: list[str] = []
     failed: list[str] = []
@@ -387,24 +645,114 @@ def main() -> int:
             print(f"Не прошли проверку: {', '.join(failed)}", file=sys.stderr)
             return 1
 
-        for repository, has_changes, branch, remote_url in prepared:
-            print(f"\n--- Публикация {repository.name} ---")
-            try:
-                publish_repository(
-                    repository,
-                    has_changes,
-                    commit_message,
-                    tag,
-                    branch,
-                    remote_url,
-                    authentication,
+        prepared_names = {item[0].name for item in prepared}
+        if "murchalka-deployment" in prepared_names:
+            repositories_by_name = {repository.name: repository for repository in repositories}
+            missing_prerequisites: list[str] = []
+            for name, required_tag in sorted(deployment_requirements.items()):
+                if name in prepared_names:
+                    continue
+                repository = repositories_by_name.get(name)
+                try:
+                    if repository is None:
+                        raise RuntimeError("локальный репозиторий не найден")
+                    remote_url = normalize_github_url(
+                        captured_git(repository, "remote", "get-url", "--push", remote_name)
+                    )
+                    if github_release(remote_url, required_tag, token) is None:
+                        missing_prerequisites.append(f"{name} ({required_tag})")
+                except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError):
+                    missing_prerequisites.append(f"{name} ({required_tag})")
+            if missing_prerequisites:
+                del token
+                print(
+                    "\nDeployment нельзя выпускать: выберите изменённые репозитории "
+                    "или сначала опубликуйте Releases из component lock: "
+                    f"{', '.join(missing_prerequisites)}",
+                    file=sys.stderr,
                 )
-                succeeded.append(repository.name)
-            except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exception:
-                failed.append(repository.name)
-                print(f"ОШИБКА {repository.name}: {exception}", file=sys.stderr)
-                if not ask_yes_no("Продолжить со следующим репозиторием?"):
+                return 1
+
+        prepared.sort(key=lambda item: (release_wave(item[0]), item[0].name.casefold()))
+        wave_names = {
+            0: "Protocol packages",
+            1: "SDK packages",
+            2: "зависимые репозитории",
+            3: "deployment после обязательного E2E gate",
+        }
+        for wave in sorted({release_wave(item[0]) for item in prepared}):
+            current_wave = [item for item in prepared if release_wave(item[0]) == wave]
+            print(f"\n=== Этап: {wave_names[wave]} ===")
+            wave_failed = False
+            stop_requested = False
+            for repository, has_changes, branch, remote_url in current_wave:
+                print(f"\n--- Публикация {repository.name} ---")
+                try:
+                    publish_repository(
+                        repository,
+                        has_changes,
+                        commit_message,
+                        tag,
+                        branch,
+                        remote_name,
+                        remote_url,
+                        authentication,
+                    )
+                    succeeded.append(repository.name)
+                except (
+                    OSError,
+                    ValueError,
+                    RuntimeError,
+                    subprocess.CalledProcessError,
+                ) as exception:
+                    failed.append(repository.name)
+                    wave_failed = True
+                    print(f"ОШИБКА {repository.name}: {exception}", file=sys.stderr)
+                    if not ask_yes_no("Продолжить с репозиториями этого этапа?"):
+                        stop_requested = True
+                        break
+
+            if wave_failed or stop_requested:
+                print(
+                    "Следующий этап не будет запущен из-за ошибки текущего этапа.",
+                    file=sys.stderr,
+                )
+                break
+
+            later_waves = any(release_wave(item[0]) > wave for item in prepared)
+            for repository, _, _, remote_url in current_wave:
+                must_wait = repository.name in PACKAGE_RELEASE_WAVES or (
+                    later_waves
+                    and deployment_requirements.get(repository.name) == tag
+                )
+                if not must_wait:
+                    continue
+                try:
+                    wait_for_package_release(
+                        repository,
+                        remote_url,
+                        tag,
+                        token,
+                        arguments.release_timeout,
+                        arguments.poll_interval,
+                    )
+                except (OSError, ValueError, RuntimeError) as exception:
+                    if repository.name in succeeded:
+                        succeeded.remove(repository.name)
+                    failed.append(repository.name)
+                    wave_failed = True
+                    print(
+                        f"ОШИБКА ОЖИДАНИЯ {repository.name}: {exception}",
+                        file=sys.stderr,
+                    )
                     break
+
+            if wave_failed:
+                print(
+                    "Следующий этап не будет запущен: пакеты ещё не опубликованы.",
+                    file=sys.stderr,
+                )
+                break
 
     del token
     print("\nИтог:")

@@ -1,0 +1,11 @@
+{
+  "models": [
+    {
+      "id": "local-default",
+      "providerModel": "llama3.2",
+      "displayName": "Local default",
+      "enabled": true,
+      "default": true
+    }
+  ]
+}

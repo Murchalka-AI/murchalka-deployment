@@ -61,6 +61,7 @@ internal static class Program
 
         using var grantKey = ReadPrivateKey(grantPrivateKeyPath);
         Directory.CreateDirectory(outputPath);
+        WriteAdminToken(Path.Combine(outputPath, "admin-token"));
         var grantsPath = Path.Combine(outputPath, "grants");
         Directory.CreateDirectory(grantsPath);
 
@@ -93,6 +94,17 @@ internal static class Program
         }
 
         Console.WriteLine($"Prepared trust for {bundles.Length} bundles and {written} explicit permission grants in '{outputPath}'.");
+    }
+
+    private static void WriteAdminToken(string path)
+    {
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+        File.WriteAllText(path, token + Environment.NewLine);
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
     }
 
     private static BundleDescriptor ReadBundle(string path)

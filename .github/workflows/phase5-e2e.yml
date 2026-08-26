@@ -1,12 +1,27 @@
 name: Phase 5 E2E
 
 on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Coordinated release tag
+        required: true
+        type: string
+      ollama_model:
+        description: Ollama model used for the acceptance turn
+        required: false
+        default: llama3.2
+        type: string
+    secrets:
+      BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: { required: true }
+      BUNDLE_SIGNING_KEY_ID: { required: true }
+      PHASE5_E2E_PASSWORD: { required: true }
   workflow_dispatch:
     inputs:
-      version:
-        description: Coordinated release version without the v prefix
+      tag:
+        description: Coordinated release tag
         required: true
-        default: 0.2.1
+        default: v0.2.5
       ollama_model:
         description: Ollama model used for the acceptance turn
         required: true
@@ -25,11 +40,24 @@ jobs:
         uses: actions/checkout@v7
         with: { persist-credentials: false }
 
+      - name: Resolve the immutable component lock
+        id: components
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          lock="releases/minimal-core.lock.json"
+          test "$(jq -r '.deploymentTag' "${lock}")" = "${REQUESTED_TAG}"
+          echo "web_tag=$(jq -r '.web.tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "runtime_image=$(jq -r '.runtime.image' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "web_image=$(jq -r '.web.image' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "ollama_image=$(jq -r '.ollama.image' "${lock}")" >> "${GITHUB_OUTPUT}"
+
       - name: Check out coordinated Web shell
         uses: actions/checkout@v7
         with:
           repository: Murchalka-AI/murchalka-web
-          ref: v${{ inputs.version }}
+          ref: ${{ steps.components.outputs.web_tag }}
           path: murchalka-web
           persist-credentials: false
 
@@ -59,37 +87,21 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           mkdir -p runtime/modules/inbox
-          repositories=(
-            murchalka-module-people
-            murchalka-module-character-identity
-            murchalka-module-conversations
-            murchalka-module-sessions
-            murchalka-module-agent-runtime
-            murchalka-module-context
-            murchalka-module-model-ollama
-            murchalka-module-auth-local
-            murchalka-module-authorization
-            murchalka-module-audit-store
-            murchalka-module-agent-ui
-            murchalka-module-protocol-client-realtime
-            murchalka-storage-sqlite
-            murchalka-module-secrets-local
-          )
-          for repository in "${repositories[@]}"; do
+          while IFS=$'\t' read -r repository release_tag; do
+            release_version="${release_tag#v}"
             download="${RUNNER_TEMP}/${repository}"
             mkdir -p "${download}"
-            gh release download "v${RELEASE_VERSION}" \
+            gh release download "${release_tag}" \
               --repo "Murchalka-AI/${repository}" \
-              --pattern "*-${RELEASE_VERSION}-linux-x64.murchalka" \
+              --pattern "*-${release_version}-linux-x64.murchalka" \
               --pattern SHA256SUMS \
               --dir "${download}"
             (cd "${download}" && sha256sum --check --ignore-missing SHA256SUMS)
             cp "${download}"/*-linux-x64.murchalka runtime/modules/inbox/
-          done
-          test "$(find runtime/modules/inbox -name '*.murchalka' | wc -l)" -eq 14
+          done < <(jq -r '.modules[] | [.repository, .tag] | @tsv' releases/minimal-core.lock.json)
+          test "$(find runtime/modules/inbox -name '*.murchalka' | wc -l)" -eq 17
 
       - name: Prepare local trust and digest-bound grants
         shell: bash
@@ -122,11 +134,15 @@ jobs:
         shell: bash
         env:
           E2E_PASSWORD: ${{ secrets.PHASE5_E2E_PASSWORD }}
-          MURCHALKA_OLLAMA_MODEL: ${{ inputs.ollama_model }}
+          MURCHALKA_OLLAMA_MODEL: ${{ inputs.ollama_model || 'llama3.2' }}
           MURCHALKA_WEB_ROOT: ${{ github.workspace }}/murchalka-web
         run: |
           test -n "${E2E_PASSWORD}"
-          cp .env.example .env
+          printf '%s\n' \
+            "MURCHALKA_RUNTIME_IMAGE=${{ steps.components.outputs.runtime_image }}" \
+            "OLLAMA_IMAGE=${{ steps.components.outputs.ollama_image }}" \
+            "MURCHALKA_WEB_IMAGE=${{ steps.components.outputs.web_image }}" \
+            > .env
           printf '%s\n' "${E2E_PASSWORD}" | scripts/phase5-e2e.sh --password-stdin
 
       - name: Collect container logs on failure

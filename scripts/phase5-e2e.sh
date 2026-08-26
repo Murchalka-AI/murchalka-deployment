@@ -10,8 +10,10 @@ repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 web_root="$(cd -- "${MURCHALKA_WEB_ROOT:-${repository_root}/../murchalka-web}" && pwd)"
 compose=(docker compose --env-file "${repository_root}/.env" -f "${repository_root}/compose/compose.yaml")
 password_file="$(mktemp)"
-trap 'rm -f -- "${password_file}"; "${compose[@]}" down >/dev/null 2>&1 || true' EXIT
+evidence_file="$(mktemp)"
+trap 'rm -f -- "${password_file}" "${evidence_file}"; "${compose[@]}" down >/dev/null 2>&1 || true' EXIT
 chmod 0600 "${password_file}"
+chmod 0600 "${evidence_file}"
 IFS= read -r password
 printf '%s' "${password}" > "${password_file}"
 unset password
@@ -21,6 +23,10 @@ if [[ ! -s "${password_file}" ]]; then
 fi
 if [[ ! -f "${repository_root}/runtime/security/trusted-publishers.json" ]]; then
   echo "Run scripts/prepare-security.sh before the acceptance scenario." >&2
+  exit 2
+fi
+if [[ ! -s "${repository_root}/runtime/security/admin-token" ]]; then
+  echo "Administrative token is missing. Run scripts/prepare-security.sh before the acceptance scenario." >&2
   exit 2
 fi
 if ! find "${repository_root}/runtime/modules/inbox" -maxdepth 1 -name '*.murchalka' -print -quit | grep -q .; then
@@ -44,15 +50,32 @@ for attempt in {1..180}; do
   sleep 1
 done
 
+for attempt in {1..60}; do
+  if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then
+    break
+  fi
+  if [[ "${attempt}" -eq 60 ]]; then
+    "${compose[@]}" logs web >&2
+    echo "Released Web container did not become ready." >&2
+    exit 1
+  fi
+  sleep 1
+done
+
 "${repository_root}/scripts/bootstrap.sh" --password-stdin < "${password_file}"
-dotnet run \
-  --project "${repository_root}/tools/Murchalka.Phase5.Acceptance/Murchalka.Phase5.Acceptance.csproj" \
-  --configuration Release \
-  -- --username "${MURCHALKA_USERNAME:-owner}" < "${password_file}"
 
 (
   cd -- "${web_root}"
   MURCHALKA_E2E_USERNAME="${MURCHALKA_USERNAME:-owner}" \
   MURCHALKA_E2E_PASSWORD="$(<"${password_file}")" \
+  MURCHALKA_E2E_EVIDENCE="${evidence_file}" \
+  MURCHALKA_E2E_BASE_URL="http://127.0.0.1:8080" \
   npm run test:e2e
 )
+
+dotnet run \
+  --project "${repository_root}/tools/Murchalka.Phase5.Acceptance/Murchalka.Phase5.Acceptance.csproj" \
+  --configuration Release \
+  -- --username "${MURCHALKA_USERNAME:-owner}" \
+  --admin-token-file "${repository_root}/runtime/security/admin-token" \
+  --evidence "${evidence_file}" < "${password_file}"

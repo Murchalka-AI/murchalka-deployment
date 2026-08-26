@@ -8,7 +8,17 @@ permissions:
   id-token: write
   attestations: write
 jobs:
+  phase5-acceptance:
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/phase5-e2e.yml
+    with:
+      tag: ${{ github.ref_name }}
+      ollama_model: llama3.2
+    secrets: inherit
   release:
+    needs: phase5-acceptance
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -40,7 +50,7 @@ jobs:
       - name: Package deployment
         run: |
           mkdir -p artifacts
-          tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner -czf "artifacts/murchalka-deployment-${{ steps.version.outputs.value }}.tar.gz" profiles bindings configuration compose scripts tools docs Directory.Build.props Directory.Packages.props NuGet.Config global.json README.md SECURITY.md .env.example
+          tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner -czf "artifacts/murchalka-deployment-${{ steps.version.outputs.value }}.tar.gz" profiles bindings configuration compose scripts tools docs releases Directory.Build.props Directory.Packages.props NuGet.Config global.json README.md SECURITY.md .env.example
           (cd artifacts && sha256sum *.tar.gz > SHA256SUMS)
       - uses: actions/attest-build-provenance@v3
         with: { subject-path: 'artifacts/*.tar.gz' }

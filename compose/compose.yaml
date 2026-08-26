@@ -29,6 +29,8 @@ services:
       - /etc/murchalka/bootstrap/minimal.bindings.yaml
       - --bootstrap-configuration
       - /etc/murchalka/bootstrap/configuration
+      - --admin-token-file
+      - /run/secrets/murchalka-admin-token
     network_mode: host
     read_only: true
     tmpfs: [/tmp]
@@ -38,7 +40,13 @@ services:
       - ../configuration:/etc/murchalka/bootstrap/configuration:ro
       - ../runtime/security/trusted-publishers.json:/var/lib/murchalka/configuration/trusted-publishers.json:ro
       - ../runtime/security/grants:/var/lib/murchalka/configuration/grants:ro
-    security_opt: [no-new-privileges:true]
+    secrets:
+      - source: murchalka_admin_token
+        target: murchalka-admin-token
+        mode: 0444
+    # The outer container keeps no Linux capabilities. Unconfined syscall and
+    # AppArmor profiles allow rootless bwrap to create the inner module sandbox.
+    security_opt: [no-new-privileges:true, seccomp=unconfined, apparmor=unconfined]
     cap_drop: [ALL]
     restart: unless-stopped
     depends_on:
@@ -61,3 +69,6 @@ services:
 volumes:
   runtime-state: {}
   ollama-state: {}
+secrets:
+  murchalka_admin_token:
+    file: ../runtime/security/admin-token

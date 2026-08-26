@@ -1,6 +1,6 @@
 apiVersion: profiles.murchalka.dev/v1
 kind: RuntimeProfile
-metadata: { id: minimal-core, version: 0.2.1 }
+metadata: { id: minimal-core, version: 0.2.5 }
 modules:
   required:
     - { id: dev.murchalka.storage-sqlite, version: ">=0.1.0 <0.2.99" }
@@ -10,6 +10,8 @@ modules:
     - { id: dev.murchalka.conversations, version: ">=0.1.0 <0.2.99" }
     - { id: dev.murchalka.sessions, version: ">=0.1.0 <0.2.99" }
     - { id: dev.murchalka.context, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.model-catalog, version: ">=0.2.2 <0.2.99" }
+    - { id: dev.murchalka.model-router-basic, version: ">=0.2.2 <0.2.99" }
     - { id: dev.murchalka.model-ollama, version: ">=0.1.0 <0.2.99" }
     - { id: dev.murchalka.auth-local, version: ">=0.1.0 <0.2.99" }
     - { id: dev.murchalka.authorization, version: ">=0.1.0 <0.2.99" }
@@ -17,11 +19,14 @@ modules:
     - { id: dev.murchalka.agent-ui, version: ">=0.1.0 <0.2.99" }
     - { id: dev.murchalka.agent-runtime, version: ">=0.1.0 <0.2.99" }
     - { id: dev.murchalka.client-realtime, version: ">=0.1.0 <0.2.99" }
+    - { id: dev.murchalka.observability, version: ">=0.2.2 <0.2.99" }
   optional: []
 bindings:
   - consumer: { category: storage.records }
     provider: { module: dev.murchalka.storage-sqlite, capability: storage.sqlite.records }
   - consumer: { category: model.chat }
+    provider: { module: dev.murchalka.model-router-basic, capability: model.router.chat }
+  - consumer: { category: model.provider.chat }
     provider: { module: dev.murchalka.model-ollama, capability: model.ollama.chat }
 permissionsPolicy:
   trustedPublishers: [dev.murchalka]
