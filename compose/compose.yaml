@@ -35,7 +35,6 @@ services:
       - --unshare-ipc
       - --unshare-pid
       - --unshare-uts
-      - --unshare-cgroup-try
       - --cap-drop
       - ALL
       - --ro-bind

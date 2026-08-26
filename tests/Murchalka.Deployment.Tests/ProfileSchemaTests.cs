@@ -68,8 +68,8 @@ public sealed class ProfileSchemaTests
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.15", componentLock["deploymentTag"]!.GetValue<string>());
-        Assert.Equal("v0.2.15", componentLock["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.2.16", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.16", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
         Assert.Equal(17, lockedRepositories.Count);
@@ -142,7 +142,8 @@ public sealed class ProfileSchemaTests
         Assert.Contains("--unshare-ipc", probeCommand);
         Assert.Contains("--unshare-pid", probeCommand);
         Assert.Contains("--unshare-uts", probeCommand);
-        Assert.Contains("--unshare-cgroup-try", probeCommand);
+        Assert.DoesNotContain("--unshare-cgroup", probeCommand);
+        Assert.DoesNotContain("--unshare-cgroup-try", probeCommand);
         Assert.Equal("host", sandboxProbe["userns_mode"]!.GetValue<string>());
         Assert.True(sandboxProbe["cap_drop"]!.AsArray()
             .Select(capability => capability!.GetValue<string>())
