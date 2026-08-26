@@ -68,7 +68,7 @@ public sealed class ProfileSchemaTests
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.9", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.10", componentLock["deploymentTag"]!.GetValue<string>());
         Assert.Equal("v0.2.5", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));

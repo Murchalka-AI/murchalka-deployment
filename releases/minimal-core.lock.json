@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "profileId": "minimal-core",
-  "deploymentTag": "v0.2.9",
+  "deploymentTag": "v0.2.10",
   "runtime": {
     "repository": "murchalka-runtime",
     "tag": "v0.2.5",
