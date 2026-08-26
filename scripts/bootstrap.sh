@@ -29,7 +29,8 @@ modules_file="$(mktemp)"
 response_file="$(mktemp)"
 trap 'rm -f -- "$password_file" "$curl_config" "$capabilities_file" "$modules_file" "$response_file"' EXIT
 chmod 0600 "$password_file" "$curl_config" "$capabilities_file" "$modules_file" "$response_file"
-IFS= read -r password
+password=""
+IFS= read -r password || [[ -n "$password" ]]
 printf '%s' "$password" > "$password_file"
 unset password
 if [[ ! -s "$password_file" ]]; then

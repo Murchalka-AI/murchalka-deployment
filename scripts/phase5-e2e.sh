@@ -24,8 +24,9 @@ cleanup() {
 trap cleanup EXIT
 chmod 0600 "${password_file}"
 chmod 0600 "${evidence_file}"
-IFS= read -r password
-printf '%s' "${password}" > "${password_file}"
+password=""
+IFS= read -r password || [[ -n "${password}" ]]
+printf '%s\n' "${password}" > "${password_file}"
 unset password
 if [[ ! -s "${password_file}" ]]; then
   echo "A non-empty password must be supplied on standard input." >&2
