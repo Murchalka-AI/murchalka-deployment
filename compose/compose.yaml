@@ -25,6 +25,28 @@ services:
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE]
     restart: "no"
+  sandbox-probe:
+    image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
+    entrypoint: [/usr/bin/bwrap]
+    command:
+      - --die-with-parent
+      - --new-session
+      - --unshare-all
+      - --ro-bind
+      - /
+      - /
+      - --proc
+      - /proc
+      - --dev
+      - /dev
+      - --
+      - /usr/bin/true
+    read_only: true
+    tmpfs: [/tmp]
+    userns_mode: host
+    security_opt: [no-new-privileges:true, seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]
+    cap_drop: [ALL]
+    restart: "no"
   runtime:
     image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
     command:
@@ -43,18 +65,21 @@ services:
     network_mode: host
     read_only: true
     tmpfs: [/tmp]
+    userns_mode: host
     volumes:
       - runtime-state:/var/lib/murchalka
       - ../bindings/minimal.bindings.yaml:/etc/murchalka/bootstrap/minimal.bindings.yaml:ro
       - ../configuration:/etc/murchalka/bootstrap/configuration:ro
-    # The outer container keeps no Linux capabilities. Unconfined syscall and
-    # AppArmor profiles allow rootless bwrap to create the inner module sandbox.
-    security_opt: [no-new-privileges:true, seccomp=unconfined, apparmor=unconfined]
+    # The outer container keeps no Linux capabilities. The host user namespace
+    # and unconfined namespace-related restrictions allow rootless bwrap to
+    # create the inner per-module sandbox.
+    security_opt: [no-new-privileges:true, seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]
     cap_drop: [ALL]
     restart: unless-stopped
     depends_on:
       ollama: { condition: service_started }
       module-loader: { condition: service_completed_successfully }
+      sandbox-probe: { condition: service_completed_successfully }
   ollama:
     image: ${OLLAMA_IMAGE:?Pin OLLAMA_IMAGE in .env}
     network_mode: host

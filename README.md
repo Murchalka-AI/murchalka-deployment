@@ -8,7 +8,7 @@ Phase 5 Minimal Core profile, deterministic bindings, module configuration, and 
 2. Prepare Runtime trust and least-privilege grants from those exact bundle digests. Keep both private keys outside this repository:
    `scripts/prepare-security.sh --bundles runtime/modules/inbox --publisher-key /safe/publisher-public.pem --publisher-key-id <release-key-id> --grant-private-key /safe/local-grant-private.pem --output runtime/security`.
 3. Copy `.env.example` to `.env`; the supplied values match the immutable component versions in `releases/minimal-core.lock.json`.
-4. Start the topology with `docker compose --env-file .env -f compose/compose.yaml up -d`. Runtime applies `minimal-core` bindings and the checked-in module configuration snapshots after the trusted modules activate.
+4. Start the topology with `docker compose --env-file .env -f compose/compose.yaml up -d`. A one-shot sandbox probe must pass before Runtime starts. Runtime then applies `minimal-core` bindings and the checked-in module configuration snapshots after the trusted modules activate.
 5. Bootstrap one Person, Character Identity, and Local Auth credential without exposing the password in process arguments:
    `printf '%s\n' '<strong-password>' | scripts/bootstrap.sh --password-stdin`.
 6. Open the Web shell and connect to `ws://127.0.0.1:5080/v1/realtime`.

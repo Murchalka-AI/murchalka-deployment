@@ -68,7 +68,7 @@ public sealed class ProfileSchemaTests
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.11", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.12", componentLock["deploymentTag"]!.GetValue<string>());
         Assert.Equal("v0.2.5", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
@@ -105,6 +105,7 @@ public sealed class ProfileSchemaTests
         var compose = StructuredDocument.Load(Path.Combine(root, "compose", "compose.yaml")).AsObject();
         var runtime = compose["services"]!["runtime"]!.AsObject();
         var moduleLoader = compose["services"]!["module-loader"]!.AsObject();
+        var sandboxProbe = compose["services"]!["sandbox-probe"]!.AsObject();
         var securityOptions = runtime["security_opt"]!.AsArray()
             .Select(option => option!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
@@ -116,7 +117,9 @@ public sealed class ProfileSchemaTests
         Assert.Contains("no-new-privileges:true", securityOptions);
         Assert.Contains("seccomp=unconfined", securityOptions);
         Assert.Contains("apparmor=unconfined", securityOptions);
+        Assert.Contains("systempaths=unconfined", securityOptions);
         Assert.True(droppedCapabilities.SetEquals(["ALL"]));
+        Assert.Equal("host", runtime["userns_mode"]!.GetValue<string>());
         Assert.Null(runtime["secrets"]);
         Assert.Contains(
             "/var/lib/murchalka/configuration/admin-token",
@@ -124,5 +127,16 @@ public sealed class ProfileSchemaTests
         Assert.Contains(
             "../runtime/security:/security:ro",
             moduleLoader["volumes"]!.AsArray().Select(volume => volume!.GetValue<string>()));
+        Assert.Equal("/usr/bin/bwrap", sandboxProbe["entrypoint"]!.AsArray()[0]!.GetValue<string>());
+        Assert.Equal("host", sandboxProbe["userns_mode"]!.GetValue<string>());
+        Assert.True(sandboxProbe["cap_drop"]!.AsArray()
+            .Select(capability => capability!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal)
+            .SetEquals(["ALL"]));
+        Assert.True(securityOptions.SetEquals(sandboxProbe["security_opt"]!.AsArray()
+            .Select(option => option!.GetValue<string>())));
+        Assert.Equal(
+            "service_completed_successfully",
+            runtime["depends_on"]!["sandbox-probe"]!["condition"]!.GetValue<string>());
     }
 }
