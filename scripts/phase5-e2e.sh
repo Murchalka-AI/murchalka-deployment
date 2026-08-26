@@ -38,9 +38,19 @@ fi
 "${compose[@]}" exec -T ollama ollama pull "${MURCHALKA_OLLAMA_MODEL:-llama3.2}"
 "${compose[@]}" up -d runtime web
 
+runtime_container="$("${compose[@]}" ps -q runtime)"
+if [[ -z "${runtime_container}" ]]; then
+  echo "Runtime container was not created." >&2
+  exit 1
+fi
 for attempt in {1..180}; do
   if curl --fail --silent http://127.0.0.1:5078/health >/dev/null; then
     break
+  fi
+  if [[ "$(docker inspect --format '{{.RestartCount}}' "${runtime_container}")" -gt 0 ]]; then
+    "${compose[@]}" logs runtime >&2
+    echo "Runtime restarted before becoming ready." >&2
+    exit 1
   fi
   if [[ "${attempt}" -eq 180 ]]; then
     "${compose[@]}" logs runtime >&2

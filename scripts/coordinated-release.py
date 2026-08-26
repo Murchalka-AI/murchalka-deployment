@@ -581,7 +581,7 @@ def main() -> int:
         return 0
 
     commit_message = required_input("Текст коммита: ")
-    tag = required_input("Имя тега, например v0.2.6: ")
+    tag = required_input("Имя тега, например v0.2.7: ")
     remote_name = input("Имя remote [origin]: ").strip() or "origin"
     token = getpass.getpass("GitHub token (ввод скрыт): ").strip()
     if not token:

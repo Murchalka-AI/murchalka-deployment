@@ -68,7 +68,7 @@ public sealed class ProfileSchemaTests
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.6", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.7", componentLock["deploymentTag"]!.GetValue<string>());
         Assert.Equal("v0.2.5", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
@@ -83,6 +83,7 @@ public sealed class ProfileSchemaTests
         var root = RepositoryRootLocator.Find();
         var compose = StructuredDocument.Load(Path.Combine(root, "compose", "compose.yaml")).AsObject();
         var runtime = compose["services"]!["runtime"]!.AsObject();
+        var moduleLoader = compose["services"]!["module-loader"]!.AsObject();
         var securityOptions = runtime["security_opt"]!.AsArray()
             .Select(option => option!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
@@ -95,5 +96,12 @@ public sealed class ProfileSchemaTests
         Assert.Contains("seccomp=unconfined", securityOptions);
         Assert.Contains("apparmor=unconfined", securityOptions);
         Assert.True(droppedCapabilities.SetEquals(["ALL"]));
+        Assert.Null(runtime["secrets"]);
+        Assert.Contains(
+            "/var/lib/murchalka/configuration/admin-token",
+            runtime["command"]!.AsArray().Select(argument => argument!.GetValue<string>()));
+        Assert.Contains(
+            "../runtime/security:/security:ro",
+            moduleLoader["volumes"]!.AsArray().Select(volume => volume!.GetValue<string>()));
     }
 }
