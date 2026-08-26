@@ -68,8 +68,8 @@ public sealed class ProfileSchemaTests
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.13", componentLock["deploymentTag"]!.GetValue<string>());
-        Assert.Equal("v0.2.13", componentLock["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.2.14", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.14", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
         Assert.Equal(17, lockedRepositories.Count);
@@ -127,9 +127,9 @@ public sealed class ProfileSchemaTests
         Assert.Contains(
             "../runtime/security:/security:ro",
             moduleLoader["volumes"]!.AsArray().Select(volume => volume!.GetValue<string>()));
-        Assert.Equal("/usr/bin/unshare", sandboxProbe["entrypoint"]!.AsArray()[0]!.GetValue<string>());
+        Assert.Equal("/usr/local/libexec/murchalka-netns-exec", sandboxProbe["entrypoint"]!.AsArray()[0]!.GetValue<string>());
         Assert.Equal(
-            "unshare",
+            "namespace-launcher",
             runtime["environment"]!["MURCHALKA_LINUX_NETWORK_ISOLATION"]!.GetValue<string>());
         Assert.Contains("/usr/bin/bwrap", sandboxProbe["command"]!.AsArray().Select(argument => argument!.GetValue<string>()));
         Assert.Contains("--share-net", sandboxProbe["command"]!.AsArray().Select(argument => argument!.GetValue<string>()));

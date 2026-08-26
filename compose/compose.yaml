@@ -27,12 +27,8 @@ services:
     restart: "no"
   sandbox-probe:
     image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
-    entrypoint: [/usr/bin/unshare]
+    entrypoint: [/usr/local/libexec/murchalka-netns-exec]
     command:
-      - --user
-      - --map-root-user
-      - --net
-      - --
       - /usr/bin/bwrap
       - --die-with-parent
       - --new-session
@@ -58,7 +54,7 @@ services:
   runtime:
     image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}
     environment:
-      MURCHALKA_LINUX_NETWORK_ISOLATION: unshare
+      MURCHALKA_LINUX_NETWORK_ISOLATION: namespace-launcher
     command:
       - --root
       - /var/lib/murchalka
