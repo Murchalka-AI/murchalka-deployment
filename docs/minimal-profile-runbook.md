@@ -13,4 +13,4 @@
 
 `scripts/phase5-e2e.sh` automates steps 6–9 against released Runtime/Web images and the actual browser shell. It also verifies that Realtime closes its durable Session.
 
-If `sandbox-probe` fails, inspect its Compose log before troubleshooting modules. Runtime and the probe deliberately run as non-root with all outer Linux capabilities dropped; the Docker host must support nested unprivileged user and network namespaces plus the Compose security options declared for those two services.
+If `sandbox-probe` fails, inspect its Compose log before troubleshooting modules. Runtime and the probe deliberately run as non-root with all outer Linux capabilities dropped. The Docker host must permit one unprivileged user and network namespace plus the Compose security options declared for those two services; Bubblewrap reuses that user/network namespace and creates the remaining module namespaces without nesting another user namespace.

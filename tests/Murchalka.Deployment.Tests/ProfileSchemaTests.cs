@@ -68,8 +68,8 @@ public sealed class ProfileSchemaTests
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.14", componentLock["deploymentTag"]!.GetValue<string>());
-        Assert.Equal("v0.2.14", componentLock["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.2.15", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.15", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
         Assert.Equal(17, lockedRepositories.Count);
@@ -131,8 +131,18 @@ public sealed class ProfileSchemaTests
         Assert.Equal(
             "namespace-launcher",
             runtime["environment"]!["MURCHALKA_LINUX_NETWORK_ISOLATION"]!.GetValue<string>());
-        Assert.Contains("/usr/bin/bwrap", sandboxProbe["command"]!.AsArray().Select(argument => argument!.GetValue<string>()));
-        Assert.Contains("--share-net", sandboxProbe["command"]!.AsArray().Select(argument => argument!.GetValue<string>()));
+        var probeCommand = sandboxProbe["command"]!.AsArray()
+            .Select(argument => argument!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.Contains("/usr/bin/bwrap", probeCommand);
+        Assert.DoesNotContain("--unshare-all", probeCommand);
+        Assert.DoesNotContain("--unshare-user", probeCommand);
+        Assert.DoesNotContain("--unshare-net", probeCommand);
+        Assert.DoesNotContain("--share-net", probeCommand);
+        Assert.Contains("--unshare-ipc", probeCommand);
+        Assert.Contains("--unshare-pid", probeCommand);
+        Assert.Contains("--unshare-uts", probeCommand);
+        Assert.Contains("--unshare-cgroup-try", probeCommand);
         Assert.Equal("host", sandboxProbe["userns_mode"]!.GetValue<string>());
         Assert.True(sandboxProbe["cap_drop"]!.AsArray()
             .Select(capability => capability!.GetValue<string>())

@@ -32,8 +32,10 @@ services:
       - /usr/bin/bwrap
       - --die-with-parent
       - --new-session
-      - --unshare-all
-      - --share-net
+      - --unshare-ipc
+      - --unshare-pid
+      - --unshare-uts
+      - --unshare-cgroup-try
       - --cap-drop
       - ALL
       - --ro-bind
