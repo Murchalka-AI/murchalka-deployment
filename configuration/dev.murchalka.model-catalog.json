@@ -4,7 +4,7 @@
     "models": [
       {
         "id": "local-default",
-        "providerModel": "llama3.2",
+        "providerModel": "llama3.2:1b",
         "displayName": "Local default",
         "enabled": true,
         "default": true

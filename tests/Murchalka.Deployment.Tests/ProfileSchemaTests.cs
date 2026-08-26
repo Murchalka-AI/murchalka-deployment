@@ -67,10 +67,16 @@ public sealed class ProfileSchemaTests
         var lockedRepositories = lockedModules
             .Select(module => module!["repository"]!.GetValue<string>())
             .ToHashSet(StringComparer.Ordinal);
+        var lockedTags = lockedModules.ToDictionary(
+            module => module!["repository"]!.GetValue<string>(),
+            module => module!["tag"]!.GetValue<string>(),
+            StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.16", componentLock["deploymentTag"]!.GetValue<string>());
-        Assert.Equal("v0.2.16", componentLock["runtime"]!["tag"]!.GetValue<string>());
-        Assert.Equal("v0.2.2", componentLock["web"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.2.18", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.2.18", componentLock["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.2.18", componentLock["web"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.2.18", lockedTags["murchalka-module-auth-local"]);
+        Assert.Equal("v0.2.18", lockedTags["murchalka-module-model-router-basic"]);
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
         Assert.Equal(17, lockedRepositories.Count);
         Assert.All(lockedModules, module => Assert.Matches("^v[0-9]+\\.[0-9]+\\.[0-9]+$", module!["tag"]!.GetValue<string>()));

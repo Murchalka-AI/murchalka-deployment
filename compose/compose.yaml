@@ -23,7 +23,7 @@ services:
       - ../runtime/security:/security:ro
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     restart: "no"
   sandbox-probe:
     image: ${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE in .env}

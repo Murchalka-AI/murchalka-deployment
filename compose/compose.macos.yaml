@@ -1,0 +1,45 @@
+services:
+  runtime-loopback-exporter:
+    image: ${SOCAT_IMAGE:?Pin SOCAT_IMAGE in .env}
+    network_mode: host
+    entrypoint: [/bin/sh, -c]
+    command:
+      - |
+        socat TCP-LISTEN:25078,fork,reuseaddr TCP:127.0.0.1:5078 &
+        admin_pid=$$!
+        socat TCP-LISTEN:25080,fork,reuseaddr TCP:127.0.0.1:5080 &
+        realtime_pid=$$!
+        trap 'kill "$$admin_pid" "$$realtime_pid" 2>/dev/null || true' TERM INT
+        wait "$$admin_pid" "$$realtime_pid"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+    depends_on:
+      runtime: { condition: service_started }
+  runtime-relay:
+    image: ${SOCAT_IMAGE:?Pin SOCAT_IMAGE in .env}
+    entrypoint: [/bin/sh, -c]
+    command:
+      - |
+        socat TCP-LISTEN:5078,fork,reuseaddr TCP4:172.31.250.1:25078 &
+        admin_pid=$$!
+        socat TCP-LISTEN:5080,fork,reuseaddr TCP4:172.31.250.1:25080 &
+        realtime_pid=$$!
+        trap 'kill "$$admin_pid" "$$realtime_pid" 2>/dev/null || true' TERM INT
+        wait "$$admin_pid" "$$realtime_pid"
+    ports:
+      - "127.0.0.1:15078:5078"
+      - "127.0.0.1:15080:5080"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+    depends_on:
+      runtime-loopback-exporter: { condition: service_started }
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+          gateway: 172.31.250.1

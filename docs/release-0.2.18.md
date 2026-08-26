@@ -1,0 +1,9 @@
+# Coordinated release 0.2.18
+
+Release `v0.2.18` coordinates Runtime, Deployment, Web, Local Authentication, and the Basic Model Router after the complete Phase 5 browser-to-audit path was verified with Docker. It supersedes the unpublished `v0.2.17` attempt whose GitHub Actions runs were left in an unrecoverable scheduler state during a service outage; no `v0.2.17` component Release or container image was published.
+
+Runtime emits protocol envelopes with the canonical JSON contract, waits for initial bundle reconciliation before administrative bootstrap, and uses the native namespace launcher for both isolated and explicitly granted loopback networking. Local Authentication creates the first credential without an invalid optimistic-concurrency revision. The Basic Model Router omits an absent optional model from catalog resolution instead of sending `null`. Web acceptance uses an explicit realtime endpoint and release-appropriate timeouts.
+
+The immutable component lock advances only the four changed components to `v0.2.18`; all unchanged modules remain pinned to their previously verified releases. The Router release consumes the already published SDK `v0.2.2`, so this patch does not require an artificial SDK release. Module and Web workflows also support an explicit manual release tag while always checking out and validating that immutable tag, providing a recovery path that does not move release refs.
+
+GitHub's ephemeral acceptance runner explicitly enables unprivileged user namespaces when Ubuntu's AppArmor restriction is active, while the Runtime container itself remains capability-free and non-privileged. Deployment publication remains blocked until the released Runtime image, Web image, and every locked module bundle pass Browser → WebSocket → Local Auth → Authorization → Sessions → Agent → Context → Model Router → Model Catalog → Ollama → SQLite → Audit acceptance with `llama3.2:1b`.

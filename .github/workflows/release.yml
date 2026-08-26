@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/phase5-e2e.yml
     with:
       tag: ${{ github.ref_name }}
-      ollama_model: llama3.2
+      ollama_model: llama3.2:1b
     secrets:
       BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: ${{ secrets.BUNDLE_PUBLISHER_PUBLIC_KEY_PEM }}
       MURCHALKA_BUNDLE_SIGNING_KEY_ID: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_ID }}
@@ -33,6 +33,8 @@ jobs:
         run: |
           [[ "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
           echo "value=${GITHUB_REF_NAME#v}" >> "${GITHUB_OUTPUT}"
+      - name: Validate release metadata
+        run: test "$(jq -r '.deploymentTag' releases/minimal-core.lock.json)" = "${GITHUB_REF_NAME}"
       - name: Reject an existing immutable release
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
@@ -48,8 +50,9 @@ jobs:
       - run: dotnet build Murchalka.Deployment.slnx -c Release --no-restore
       - run: dotnet run --project tests/Murchalka.Deployment.Tests/Murchalka.Deployment.Tests.csproj -c Release --no-build --no-restore -- -reporter quiet
       - run: docker compose --env-file .env.example -f compose/compose.yaml config --quiet
+      - run: docker compose --env-file .env.example -f compose/compose.yaml -f compose/compose.macos.yaml config --quiet
       - run: bash -n scripts/install-bundle.sh scripts/bootstrap.sh scripts/prepare-security.sh scripts/phase5-e2e.sh
-      - run: python3 -m py_compile scripts/coordinated-release.py
+      - run: PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/pycache" python3 -m py_compile scripts/coordinated-release.py
       - name: Package deployment
         run: |
           mkdir -p artifacts

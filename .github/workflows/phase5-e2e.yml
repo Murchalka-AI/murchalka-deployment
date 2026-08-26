@@ -10,7 +10,7 @@ on:
       ollama_model:
         description: Ollama model used for the acceptance turn
         required: false
-        default: llama3.2
+        default: llama3.2:1b
         type: string
     secrets:
       BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: { required: true }
@@ -21,11 +21,11 @@ on:
       tag:
         description: Coordinated release tag
         required: true
-        default: v0.2.11
+        default: v0.2.18
       ollama_model:
         description: Ollama model used for the acceptance turn
         required: true
-        default: llama3.2
+        default: llama3.2:1b
 
 permissions:
   contents: read
@@ -130,11 +130,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
+      - name: Enable rootless namespace acceptance on the ephemeral runner
+        shell: bash
+        run: |
+          restriction=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          if [[ -r "${restriction}" && "$(<"${restriction}")" == 1 ]]; then
+            sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
       - name: Run released browser-to-audit acceptance
         shell: bash
         env:
           E2E_PASSWORD: ${{ secrets.PHASE5_E2E_PASSWORD }}
-          MURCHALKA_OLLAMA_MODEL: ${{ inputs.ollama_model || 'llama3.2' }}
+          MURCHALKA_OLLAMA_MODEL: ${{ inputs.ollama_model || 'llama3.2:1b' }}
           MURCHALKA_WEB_ROOT: ${{ github.workspace }}/murchalka-web
         run: |
           test -n "${E2E_PASSWORD}"
