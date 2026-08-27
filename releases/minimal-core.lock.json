@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "profileId": "minimal-core",
-  "deploymentTag": "v0.3.3",
+  "deploymentTag": "v0.3.4",
   "runtime": {
     "repository": "murchalka-runtime",
     "tag": "v0.3.3",
@@ -27,12 +27,12 @@
     },
     "runtime": {
       "repository": "murchalka-node-runtime",
-      "tag": "v0.3.2",
-      "image": "ghcr.io/murchalka-ai/murchalka-node-runtime:0.3.2"
+      "tag": "v0.3.4",
+      "image": "ghcr.io/murchalka-ai/murchalka-node-runtime:0.3.4"
     },
     "diagnostics": {
       "repository": "murchalka-node-diagnostics",
-      "tag": "v0.3.2"
+      "tag": "v0.3.4"
     }
   },
   "modules": [

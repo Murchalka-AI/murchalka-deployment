@@ -21,7 +21,7 @@ on:
       tag:
         description: Coordinated release tag
         required: true
-        default: v0.3.3
+        default: v0.3.4
       ollama_model:
         description: Ollama model used for the acceptance turn
         required: true

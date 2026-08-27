@@ -72,14 +72,14 @@ public sealed class ProfileSchemaTests
             module => module!["tag"]!.GetValue<string>(),
             StringComparer.Ordinal);
 
-        Assert.Equal("v0.3.3", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.3.4", componentLock["deploymentTag"]!.GetValue<string>());
         Assert.Equal("v0.3.3", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.18", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.All(lockedTags.Values, tag => Assert.Equal("v0.3.3", tag));
         Assert.Equal("v0.3.2", componentLock["node"]!["admin"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.3.2", componentLock["node"]!["controller"]!["tag"]!.GetValue<string>());
-        Assert.Equal("v0.3.2", componentLock["node"]!["runtime"]!["tag"]!.GetValue<string>());
-        Assert.Equal("v0.3.2", componentLock["node"]!["diagnostics"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.3.4", componentLock["node"]!["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.3.4", componentLock["node"]!["diagnostics"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
         Assert.Equal(17, lockedRepositories.Count);
         Assert.All(lockedModules, module => Assert.Matches("^v[0-9]+\\.[0-9]+\\.[0-9]+$", module!["tag"]!.GetValue<string>()));
