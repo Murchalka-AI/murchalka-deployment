@@ -72,11 +72,14 @@ public sealed class ProfileSchemaTests
             module => module!["tag"]!.GetValue<string>(),
             StringComparer.Ordinal);
 
-        Assert.Equal("v0.3.2", componentLock["deploymentTag"]!.GetValue<string>());
-        Assert.Equal("v0.3.0", componentLock["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.3.3", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.3.3", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.18", componentLock["web"]!["tag"]!.GetValue<string>());
-        Assert.Equal("v0.2.18", lockedTags["murchalka-module-auth-local"]);
-        Assert.Equal("v0.2.18", lockedTags["murchalka-module-model-router-basic"]);
+        Assert.All(lockedTags.Values, tag => Assert.Equal("v0.3.3", tag));
+        Assert.Equal("v0.3.2", componentLock["node"]!["admin"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.3.2", componentLock["node"]!["controller"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.3.2", componentLock["node"]!["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.3.2", componentLock["node"]!["diagnostics"]!["tag"]!.GetValue<string>());
         Assert.True(profileModuleIds.SetEquals(lockedModuleIds));
         Assert.Equal(17, lockedRepositories.Count);
         Assert.All(lockedModules, module => Assert.Matches("^v[0-9]+\\.[0-9]+\\.[0-9]+$", module!["tag"]!.GetValue<string>()));
@@ -160,5 +163,42 @@ public sealed class ProfileSchemaTests
         Assert.Equal(
             "service_completed_successfully",
             runtime["depends_on"]!["sandbox-probe"]!["condition"]!.GetValue<string>());
+    }
+
+    /// <summary>Verifies that Phase 6 services receive only their least-privilege secrets through isolated volumes.</summary>
+    [Fact]
+    public void PhaseSixSecretsAreStagedForRootlessServices()
+    {
+        var root = RepositoryRootLocator.Find();
+        var compose = StructuredDocument.Load(Path.Combine(root, "compose", "compose.phase6.yaml")).AsObject();
+        var services = compose["services"]!.AsObject();
+        var loader = services["node-security-loader"]!.AsObject();
+        var controller = services["node-controller"]!.AsObject();
+        var node = services["node"]!.AsObject();
+
+        Assert.Equal("none", loader["network_mode"]!.GetValue<string>());
+        Assert.True(loader["read_only"]!.GetValue<bool>());
+        Assert.True(loader["cap_drop"]!.AsArray()
+            .Select(capability => capability!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal)
+            .SetEquals(["ALL"]));
+        Assert.True(loader["cap_add"]!.AsArray()
+            .Select(capability => capability!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal)
+            .SetEquals(["CHOWN", "DAC_OVERRIDE", "FOWNER"]));
+
+        var controllerVolumes = controller["volumes"]!.AsArray()
+            .Select(volume => volume!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal);
+        var nodeVolumes = node["volumes"]!.AsArray()
+            .Select(volume => volume!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.Contains("node-controller-secrets:/run/secrets:ro", controllerVolumes);
+        Assert.Contains("node-runtime-secrets:/run/secrets:ro", nodeVolumes);
+        Assert.DoesNotContain("../runtime/node-security:/run/secrets:ro", controllerVolumes);
+        Assert.DoesNotContain("../runtime/node-security:/run/secrets:ro", nodeVolumes);
+        Assert.Equal(
+            "service_completed_successfully",
+            controller["depends_on"]!["node-security-loader"]!["condition"]!.GetValue<string>());
     }
 }

@@ -1,5 +1,29 @@
 name: murchalka-phase6
 services:
+  node-security-loader:
+    image: ${MURCHALKA_NODE_CONTROLLER_IMAGE:?Pin MURCHALKA_NODE_CONTROLLER_IMAGE}
+    user: "0"
+    entrypoint: [/bin/sh, -c]
+    command:
+      - |
+        set -eu
+        owner="$${APP_UID:-1654}"
+        install -m 0400 -o "$${owner}" -g "$${owner}" /source/node-ca.pfx /controller/node-ca.pfx
+        install -m 0400 -o "$${owner}" -g "$${owner}" /source/node-controller.pfx /controller/node-controller.pfx
+        install -m 0400 -o "$${owner}" -g "$${owner}" /source/task-signing-key.pem /controller/task-signing-key.pem
+        install -m 0400 -o "$${owner}" -g "$${owner}" /source/node-ca.pem /node/node-ca.pem
+        install -m 0400 -o "$${owner}" -g "$${owner}" /source/task-signing-public.pem /node/task-signing-public.pem
+        install -m 0400 -o "$${owner}" -g "$${owner}" /source/trusted-publishers.json /node/trusted-publishers.json
+    read_only: true
+    network_mode: none
+    volumes:
+      - "../runtime/node-security:/source:ro"
+      - "node-controller-secrets:/controller"
+      - "node-runtime-secrets:/node"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    restart: "no"
   node-controller:
     image: ${MURCHALKA_NODE_CONTROLLER_IMAGE:?Pin MURCHALKA_NODE_CONTROLLER_IMAGE}
     command:
@@ -23,9 +47,12 @@ services:
     tmpfs: [/tmp]
     volumes:
       - "node-controller-state:/var/lib/murchalka-controller"
-      - "../runtime/node-security:/run/secrets:ro"
+      - "node-controller-secrets:/run/secrets:ro"
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
+    depends_on:
+      node-security-loader:
+        condition: service_completed_successfully
   node:
     image: ${MURCHALKA_NODE_RUNTIME_IMAGE:?Pin MURCHALKA_NODE_RUNTIME_IMAGE}
     command: [--root, /var/lib/murchalka-node, --controller, "https://node-controller:5090/", --enrollment-token, "${NODE_ENROLLMENT_TOKEN:?Required}", --display-name, "Phase 6 E2E Node", --owner-scope, personal, --grant-key, /run/secrets/task-signing-public.pem, --trusted-publishers, /run/secrets/trusted-publishers.json]
@@ -35,9 +62,17 @@ services:
     tmpfs: [/tmp]
     volumes:
       - "node-state:/var/lib/murchalka-node"
-      - "../runtime/node-security:/run/secrets:ro"
+      - "node-runtime-secrets:/run/secrets:ro"
       - "../profiles/nodes/local-policy.json:/var/lib/murchalka-node/configuration/local-policy.json:ro"
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    depends_on: [node-controller]
-volumes: { node-controller-state: {}, node-state: {} }
+    depends_on:
+      node-security-loader:
+        condition: service_completed_successfully
+      node-controller:
+        condition: service_started
+volumes:
+  node-controller-state: {}
+  node-state: {}
+  node-controller-secrets: {}
+  node-runtime-secrets: {}

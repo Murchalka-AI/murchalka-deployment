@@ -4,6 +4,7 @@ set -euo pipefail
 : "${MURCHALKA_NODE_CONTROLLER_IMAGE:?Controller image is required}"
 : "${MURCHALKA_NODE_RUNTIME_IMAGE:?Node Runtime image is required}"
 : "${MURCHALKA_NODE_DIAGNOSTICS_BUNDLE:?Diagnostics bundle is required}"
+: "${MURCHALKA_NODE_DIAGNOSTICS_VERSION:?Diagnostics version is required}"
 : "${NODE_ADMIN_TOKEN:?Admin token is required}"
 : "${NODE_CA_PASSWORD:?CA password is required}"
 
@@ -73,7 +74,7 @@ done
 test -n "${provider_instance}"
 [[ "${status}" =~ ^(active|Active|4)$ ]]
 
-task_request="$(jq -n --arg instance "${provider_instance}" '{nodeId:"node-e2e",consumerModuleId:"dev.murchalka.node-controller",providerModuleId:"dev.murchalka.node-diagnostics",moduleVersion:"0.3.2",capabilityId:"node.diagnostics.echo",capabilityVersion:"1.0.0",providerInstance:$instance,actorReference:"person:e2e",purpose:"diagnostics",arguments:{message:"phase6"},allowedPaths:[],allowedNetwork:[],resourceBudget:{cpuMillis:500,memoryBytes:134217728,outputBytes:4096},lifetime:"00:00:30",idempotencyKey:"phase6-e2e",traceId:"phase6-e2e",policyRevision:1}')"
+task_request="$(jq -n --arg instance "${provider_instance}" --arg moduleVersion "${MURCHALKA_NODE_DIAGNOSTICS_VERSION}" '{nodeId:"node-e2e",consumerModuleId:"dev.murchalka.node-controller",providerModuleId:"dev.murchalka.node-diagnostics",moduleVersion:$moduleVersion,capabilityId:"node.diagnostics.echo",capabilityVersion:"1.0.0",providerInstance:$instance,actorReference:"person:e2e",purpose:"diagnostics",arguments:{message:"phase6"},allowedPaths:[],allowedNetwork:[],resourceBudget:{cpuMillis:500,memoryBytes:134217728,outputBytes:4096},lifetime:"00:00:30",idempotencyKey:"phase6-e2e",traceId:"phase6-e2e",policyRevision:1}')"
 task_id="$(curl --fail --silent --cacert "${ca}" -H "${authorization}" -H 'Content-Type: application/json' --data "${task_request}" "${base}/v1/admin/tasks" | jq -er '.taskId')"
 for _ in $(seq 1 60); do
   result="$(curl --silent --cacert "${ca}" -H "${authorization}" "${base}/v1/admin/tasks/${task_id}")"

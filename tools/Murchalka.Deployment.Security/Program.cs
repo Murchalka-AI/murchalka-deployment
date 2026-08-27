@@ -167,7 +167,7 @@ internal static class Program
             {
                 ["grantId"] = "grant-" + Convert.ToHexStringLower(grantIdDigest)[..16],
                 ["module"] = bundle.ModuleId,
-                ["moduleVersionRange"] = ">=0.1.0 <0.2.99",
+                ["moduleVersionRange"] = bundle.Version,
                 ["bundleDigest"] = bundle.BundleDigest,
                 ["issuedAt"] = issuedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
                 ["expiresAt"] = null,

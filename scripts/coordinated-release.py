@@ -23,12 +23,6 @@ PACKAGE_RELEASE_WAVES = {
     "murchalka-module-sdk": 1,
     "murchalka-deployment": 3,
 }
-DEPLOYMENT_PHASE6_RELEASES = {
-    "murchalka-admin",
-    "murchalka-module-node-controller",
-    "murchalka-node-diagnostics",
-    "murchalka-node-runtime",
-}
 GITHUB_API_VERSION = "2026-03-10"
 
 
@@ -182,6 +176,10 @@ def load_deployment_component_releases(
         )
 
     components: list[object] = [payload.get("runtime"), payload.get("web")]
+    node = payload.get("node")
+    if not isinstance(node, dict) or not node:
+        raise RuntimeError("Component lock не содержит Node-компоненты.")
+    components.extend(node.values())
     modules = payload.get("modules")
     if not isinstance(modules, list) or not modules:
         raise RuntimeError("Component lock не содержит список модулей.")
@@ -587,7 +585,7 @@ def main() -> int:
         return 0
 
     commit_message = required_input("Текст коммита: ")
-    tag = required_input("Имя тега, например v0.3.2: ")
+    tag = required_input("Имя тега, например v0.3.3: ")
     remote_name = input("Имя remote [origin]: ").strip() or "origin"
     token = getpass.getpass("GitHub token (ввод скрыт): ").strip()
     if not token:
@@ -604,9 +602,6 @@ def main() -> int:
             deployment_requirements = load_deployment_component_releases(
                 deployment_repository,
                 tag,
-            )
-            deployment_requirements.update(
-                {repository: tag for repository in DEPLOYMENT_PHASE6_RELEASES}
             )
         except RuntimeError as exception:
             del token

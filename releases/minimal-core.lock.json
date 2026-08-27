@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "profileId": "minimal-core",
-  "deploymentTag": "v0.3.2",
+  "deploymentTag": "v0.3.3",
   "runtime": {
     "repository": "murchalka-runtime",
-    "tag": "v0.3.0",
-    "image": "ghcr.io/murchalka-ai/murchalka-runtime:0.3.0"
+    "tag": "v0.3.3",
+    "image": "ghcr.io/murchalka-ai/murchalka-runtime:0.3.3"
   },
   "web": {
     "repository": "murchalka-web",
@@ -15,91 +15,111 @@
   "ollama": {
     "image": "ollama/ollama:0.11.4"
   },
+  "node": {
+    "admin": {
+      "repository": "murchalka-admin",
+      "tag": "v0.3.2"
+    },
+    "controller": {
+      "repository": "murchalka-module-node-controller",
+      "tag": "v0.3.2",
+      "image": "ghcr.io/murchalka-ai/murchalka-node-controller:0.3.2"
+    },
+    "runtime": {
+      "repository": "murchalka-node-runtime",
+      "tag": "v0.3.2",
+      "image": "ghcr.io/murchalka-ai/murchalka-node-runtime:0.3.2"
+    },
+    "diagnostics": {
+      "repository": "murchalka-node-diagnostics",
+      "tag": "v0.3.2"
+    }
+  },
   "modules": [
     {
       "moduleId": "dev.murchalka.people",
       "repository": "murchalka-module-people",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.character-identity",
       "repository": "murchalka-module-character-identity",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.conversations",
       "repository": "murchalka-module-conversations",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.sessions",
       "repository": "murchalka-module-sessions",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.agent-runtime",
       "repository": "murchalka-module-agent-runtime",
-      "tag": "v0.2.2"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.context",
       "repository": "murchalka-module-context",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.model-catalog",
       "repository": "murchalka-module-model-catalog",
-      "tag": "v0.2.2"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.model-router-basic",
       "repository": "murchalka-module-model-router-basic",
-      "tag": "v0.2.18"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.model-ollama",
       "repository": "murchalka-module-model-ollama",
-      "tag": "v0.2.2"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.auth-local",
       "repository": "murchalka-module-auth-local",
-      "tag": "v0.2.18"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.authorization",
       "repository": "murchalka-module-authorization",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.audit-store",
       "repository": "murchalka-module-audit-store",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.agent-ui",
       "repository": "murchalka-module-agent-ui",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.client-realtime",
       "repository": "murchalka-module-protocol-client-realtime",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.storage-sqlite",
       "repository": "murchalka-storage-sqlite",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.secrets-local",
       "repository": "murchalka-module-secrets-local",
-      "tag": "v0.2.1"
+      "tag": "v0.3.3"
     },
     {
       "moduleId": "dev.murchalka.observability",
       "repository": "murchalka-module-observability",
-      "tag": "v0.2.2"
+      "tag": "v0.3.3"
     }
   ]
 }
