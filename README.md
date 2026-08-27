@@ -2,6 +2,14 @@
 
 Phase 5 Minimal Core profile, deterministic bindings, module configuration, and local Compose topology.
 
+Phase 6 adds `profiles/nodes`, short-lived Node CA/task-signing material preparation, a least-privilege controller/Node Compose topology, and `scripts/phase6-e2e.sh`. Run `NODE_CA_PASSWORD=... scripts/prepare-node-security.sh` before the Node acceptance topology. Generated keys and certificates remain under ignored `runtime/node-security`.
+
+## Phase 6 acceptance
+
+The `Phase 6 E2E` workflow downloads the signed diagnostics bundle and runs the released Node Controller and Node Runtime images. It proves one-time enrollment and approval, private-CA mTLS, capability discovery, signed bundle distribution, isolated facet activation, policy-bound task execution, immediate revocation, reconnect denial, and denial of new tasks. Deployment publication requires both the Phase 5 and Phase 6 acceptance jobs to pass.
+
+For a local run, provide pinned controller/runtime images, the signed diagnostics bundle, an administrator token, a Node CA password, the trusted publisher public key, and its key identifier, then run `scripts/phase6-e2e.sh`. The script creates ephemeral security material, removes its containers and volumes on exit, and prints container logs when the gate fails.
+
 ## Start
 
 1. Place the seventeen signed Minimal Core bundles in `runtime/modules/inbox`.

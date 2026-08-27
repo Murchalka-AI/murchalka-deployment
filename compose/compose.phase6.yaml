@@ -1,0 +1,43 @@
+name: murchalka-phase6
+services:
+  node-controller:
+    image: ${MURCHALKA_NODE_CONTROLLER_IMAGE:?Pin MURCHALKA_NODE_CONTROLLER_IMAGE}
+    command:
+      - --root
+      - /var/lib/murchalka-controller
+      - --ca-pfx
+      - /run/secrets/node-ca.pfx
+      - --ca-password
+      - "${NODE_CA_PASSWORD:?Required}"
+      - --task-signing-key
+      - /run/secrets/task-signing-key.pem
+      - --admin-token
+      - "${NODE_ADMIN_TOKEN:?Required}"
+      - --urls
+      - "https://0.0.0.0:5090"
+    ports: ["127.0.0.1:5090:5090"]
+    environment:
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /run/secrets/node-controller.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "${NODE_CA_PASSWORD:?Required}"
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - "node-controller-state:/var/lib/murchalka-controller"
+      - "../runtime/node-security:/run/secrets:ro"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  node:
+    image: ${MURCHALKA_NODE_RUNTIME_IMAGE:?Pin MURCHALKA_NODE_RUNTIME_IMAGE}
+    command: [--root, /var/lib/murchalka-node, --controller, "https://node-controller:5090/", --enrollment-token, "${NODE_ENROLLMENT_TOKEN:?Required}", --display-name, "Phase 6 E2E Node", --owner-scope, personal, --grant-key, /run/secrets/task-signing-public.pem, --trusted-publishers, /run/secrets/trusted-publishers.json]
+    environment:
+      SSL_CERT_FILE: /run/secrets/node-ca.pem
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - "node-state:/var/lib/murchalka-node"
+      - "../runtime/node-security:/run/secrets:ro"
+      - "../profiles/nodes/local-policy.json:/var/lib/murchalka-node/configuration/local-policy.json:ro"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on: [node-controller]
+volumes: { node-controller-state: {}, node-state: {} }

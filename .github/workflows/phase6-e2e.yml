@@ -1,0 +1,50 @@
+name: Phase 6 E2E
+
+on:
+  workflow_call:
+    inputs:
+      tag: { required: true, type: string }
+    secrets:
+      BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: { required: true }
+      MURCHALKA_BUNDLE_SIGNING_KEY_ID: { required: true }
+  workflow_dispatch:
+    inputs:
+      tag: { required: true, type: string }
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - name: Resolve immutable release inputs
+        id: version
+        shell: bash
+        run: |
+          [[ "${{ inputs.tag }}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]
+          echo "value=${{ inputs.tag }}" | sed 's/value=v/value=/' >> "${GITHUB_OUTPUT}"
+      - name: Authenticate container registry
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: echo "${GH_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+      - name: Download signed diagnostics bundle
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          mkdir -p artifacts
+          gh release download "${{ inputs.tag }}" --repo Murchalka-AI/murchalka-node-diagnostics --pattern '*.murchalka' --dir artifacts
+      - name: Run full Node acceptance gate
+        shell: bash
+        env:
+          MURCHALKA_NODE_CONTROLLER_IMAGE: ghcr.io/murchalka-ai/murchalka-node-controller:${{ steps.version.outputs.value }}
+          MURCHALKA_NODE_RUNTIME_IMAGE: ghcr.io/murchalka-ai/murchalka-node-runtime:${{ steps.version.outputs.value }}
+          MURCHALKA_NODE_DIAGNOSTICS_BUNDLE: artifacts/murchalka-node-diagnostics-${{ steps.version.outputs.value }}.murchalka
+          NODE_ADMIN_TOKEN: phase6-acceptance-admin
+          NODE_CA_PASSWORD: phase6-acceptance-ca
+          BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: ${{ secrets.BUNDLE_PUBLISHER_PUBLIC_KEY_PEM }}
+          MURCHALKA_BUNDLE_SIGNING_KEY_ID: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_ID }}
+        run: scripts/phase6-e2e.sh

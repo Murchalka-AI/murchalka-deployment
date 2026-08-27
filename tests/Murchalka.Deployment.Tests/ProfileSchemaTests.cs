@@ -72,8 +72,8 @@ public sealed class ProfileSchemaTests
             module => module!["tag"]!.GetValue<string>(),
             StringComparer.Ordinal);
 
-        Assert.Equal("v0.2.18", componentLock["deploymentTag"]!.GetValue<string>());
-        Assert.Equal("v0.2.18", componentLock["runtime"]!["tag"]!.GetValue<string>());
+        Assert.Equal("v0.3.2", componentLock["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.3.0", componentLock["runtime"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.18", componentLock["web"]!["tag"]!.GetValue<string>());
         Assert.Equal("v0.2.18", lockedTags["murchalka-module-auth-local"]);
         Assert.Equal("v0.2.18", lockedTags["murchalka-module-model-router-basic"]);

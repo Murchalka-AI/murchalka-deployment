@@ -1,0 +1,11 @@
+apiVersion: profiles.murchalka.dev/v1
+kind: RuntimeProfile
+metadata: { id: murchalka-nodes, version: 0.3.2 }
+modules:
+  required:
+    - { id: dev.murchalka.node-controller, version: ">=0.3.2 <1.0.0" }
+    - { id: dev.murchalka.node-diagnostics, version: ">=0.3.2 <1.0.0" }
+  optional: []
+bindings: []
+permissionsPolicy: { trustedPublishers: [dev.murchalka], autoApprove: { dataClasses: [internal], network: [] } }
+activation: { autoInstallMissingFromRegistry: false, autoUpdateChannel: stable }
