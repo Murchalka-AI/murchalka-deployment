@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "phase": 7,
+  "deploymentTag": "v0.4.0",
+  "components": [
+    { "repository": "murchalka-module-protocol", "tag": "v0.4.0" },
+    { "repository": "murchalka-module-sdk", "tag": "v0.4.0" },
+    { "repository": "murchalka-runtime", "tag": "v0.4.0", "image": "ghcr.io/murchalka-ai/murchalka-runtime:0.4.0" },
+    { "repository": "murchalka-module-protocol-client-realtime", "tag": "v0.4.0" },
+    { "repository": "murchalka-client-runtime", "tag": "v0.4.1" },
+    { "repository": "murchalka-web", "tag": "v0.4.1", "image": "ghcr.io/murchalka-ai/murchalka-web:0.4.1" },
+    { "repository": "murchalka-desktop", "tag": "v0.4.1" },
+    { "repository": "murchalka-module-client-diagnostics", "tag": "v0.4.2" },
+    { "repository": "murchalka-admin", "tag": "v0.4.0" },
+    { "repository": "murchalka-deployment", "tag": "v0.4.0" }
+  ]
+}

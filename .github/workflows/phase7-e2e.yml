@@ -1,0 +1,86 @@
+name: Phase 7 E2E
+on:
+  workflow_call:
+    inputs:
+      tag: { required: true, type: string }
+    secrets:
+      BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: { required: true }
+      MURCHALKA_BUNDLE_SIGNING_KEY_ID: { required: true }
+  workflow_dispatch:
+    inputs:
+      tag: { required: true, default: v0.4.0 }
+permissions:
+  contents: read
+  packages: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - name: Validate coordinated lock
+        env: { RELEASE_TAG: "${{ inputs.tag }}" }
+        run: test "$(jq -r '.deploymentTag' releases/client-runtime.lock.json)" = "${RELEASE_TAG}"
+      - id: components
+        name: Resolve component tags
+        shell: bash
+        run: |
+          lock='releases/client-runtime.lock.json'
+          echo "client_runtime=$(jq -er '.components[] | select(.repository == "murchalka-client-runtime") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "web=$(jq -er '.components[] | select(.repository == "murchalka-web") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "desktop=$(jq -er '.components[] | select(.repository == "murchalka-desktop") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "diagnostics=$(jq -er '.components[] | select(.repository == "murchalka-module-client-diagnostics") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+      - uses: actions/checkout@v7
+        with: { repository: Murchalka-AI/murchalka-client-runtime, ref: '${{ steps.components.outputs.client_runtime }}', path: components/client-runtime, persist-credentials: false }
+      - uses: actions/checkout@v7
+        with: { repository: Murchalka-AI/murchalka-web, ref: '${{ steps.components.outputs.web }}', path: components/web, persist-credentials: false }
+      - uses: actions/checkout@v7
+        with: { repository: Murchalka-AI/murchalka-desktop, ref: '${{ steps.components.outputs.desktop }}', path: components/desktop, persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: 24 }
+      - name: Verify shared Client Runtime
+        working-directory: components/client-runtime
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check:ts
+      - name: Verify Web and browser acceptance
+        working-directory: components/web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npx playwright install --with-deps chromium
+          npx playwright test e2e/phase7.spec.ts
+      - name: Verify cross-platform Desktop shell
+        working-directory: components/desktop
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check
+      - uses: actions/setup-dotnet@v6
+        with: { global-json-file: global.json }
+      - name: Authenticate package and container registries
+        env: { PACKAGE_TOKEN: "${{ github.token }}" }
+        run: |
+          dotnet nuget update source murchalka --username "${GITHUB_ACTOR}" --password "${PACKAGE_TOKEN}" --store-password-in-clear-text --configfile NuGet.Config
+          echo "${PACKAGE_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+      - name: Download signed Client Diagnostics bundle
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          mkdir -p artifacts/bundles
+          gh release download "${{ steps.components.outputs.diagnostics }}" --repo Murchalka-AI/murchalka-module-client-diagnostics --pattern '*-linux-x64.murchalka' --dir artifacts/bundles
+      - name: Verify signature and prepare ephemeral trust
+        env:
+          PUBLISHER_PUBLIC_KEY: ${{ secrets.BUNDLE_PUBLISHER_PUBLIC_KEY_PEM }}
+          PUBLISHER_KEY_ID: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_ID }}
+        run: |
+          dotnet restore tools/Murchalka.Deployment.Security/Murchalka.Deployment.Security.csproj --configfile NuGet.Config
+          umask 077
+          printf '%s\n' "${PUBLISHER_PUBLIC_KEY}" > "${RUNNER_TEMP}/publisher.pem"
+          openssl ecparam -name prime256v1 -genkey -noout -out "${RUNNER_TEMP}/grant.pem"
+          dotnet run --project tools/Murchalka.Deployment.Security/Murchalka.Deployment.Security.csproj -c Release --no-restore -- --bundles artifacts/bundles --publisher-key "${RUNNER_TEMP}/publisher.pem" --publisher-key-id "${PUBLISHER_KEY_ID}" --grant-private-key "${RUNNER_TEMP}/grant.pem" --output artifacts/security
+      - name: Enable rootless namespace acceptance
+        run: |
+          restriction=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          if [[ -r "${restriction}" && "$(<"${restriction}")" == 1 ]]; then sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0; fi
+      - name: Install signed bundle into an already-built Runtime
+        env:
+          MURCHALKA_RUNTIME_IMAGE: ghcr.io/murchalka-ai/murchalka-runtime:0.4.0
+          PHASE7_BUNDLE_DIR: ${{ github.workspace }}/artifacts/bundles
+          PHASE7_SECURITY_DIR: ${{ github.workspace }}/artifacts/security
+        run: scripts/phase7-e2e.sh

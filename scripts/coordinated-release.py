@@ -154,53 +154,111 @@ def release_wave(repository: Path) -> int:
     return PACKAGE_RELEASE_WAVES.get(repository.name, 2)
 
 
+def load_release_lock(
+    deployment_repository: Path,
+    expected_deployment_tag: str,
+) -> tuple[Path, dict[str, object]]:
+    """Load the unique component lock matching the requested deployment tag."""
+    releases_directory = deployment_repository / "releases"
+    lock_paths = sorted(releases_directory.glob("*.lock.json"))
+    if not lock_paths:
+        raise RuntimeError(f"В {releases_directory} не найдены component lock-файлы.")
+
+    matching_locks: list[tuple[Path, dict[str, object]]] = []
+    available_locks: list[str] = []
+    for lock_path in lock_paths:
+        try:
+            payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exception:
+            raise RuntimeError(
+                f"Не удалось прочитать component lock {lock_path}: {exception}"
+            ) from exception
+        if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
+            raise RuntimeError(
+                f"Component lock {lock_path} имеет неподдерживаемую schemaVersion."
+            )
+
+        deployment_tag = payload.get("deploymentTag")
+        if not isinstance(deployment_tag, str) or not deployment_tag:
+            raise RuntimeError(f"Component lock {lock_path} не содержит deploymentTag.")
+        available_locks.append(f"{lock_path.name}: {deployment_tag}")
+        if deployment_tag == expected_deployment_tag:
+            matching_locks.append((lock_path, payload))
+
+    if not matching_locks:
+        available = ", ".join(available_locks)
+        raise RuntimeError(
+            f"Для тега {expected_deployment_tag} не найден component lock. "
+            f"Доступны: {available}."
+        )
+    if len(matching_locks) > 1:
+        paths = ", ".join(str(lock_path) for lock_path, _ in matching_locks)
+        raise RuntimeError(
+            f"Для тега {expected_deployment_tag} найдено несколько component lock: {paths}."
+        )
+    return matching_locks[0]
+
+
+def deployment_lock_components(
+    lock_path: Path,
+    payload: dict[str, object],
+) -> list[object]:
+    """Return component entries from the current or legacy deployment lock format."""
+    components = payload.get("components")
+    if components is not None:
+        if not isinstance(components, list) or not components:
+            raise RuntimeError(
+                f"Component lock {lock_path} содержит пустой или некорректный components."
+            )
+        return components
+
+    legacy_components: list[object] = [payload.get("runtime"), payload.get("web")]
+    node = payload.get("node")
+    if not isinstance(node, dict) or not node:
+        raise RuntimeError(f"Component lock {lock_path} не содержит Node-компоненты.")
+    legacy_components.extend(node.values())
+    modules = payload.get("modules")
+    if not isinstance(modules, list) or not modules:
+        raise RuntimeError(f"Component lock {lock_path} не содержит список модулей.")
+    legacy_components.extend(modules)
+    return legacy_components
+
+
 def load_deployment_component_releases(
     deployment_repository: Path,
     expected_deployment_tag: str,
 ) -> dict[str, str]:
     """Load and validate repository releases pinned by the deployment component lock."""
-    lock_path = deployment_repository / "releases" / "minimal-core.lock.json"
-    try:
-        payload = json.loads(lock_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exception:
-        raise RuntimeError(
-            f"Не удалось прочитать component lock {lock_path}: {exception}"
-        ) from exception
-
-    if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
-        raise RuntimeError("Component lock имеет неподдерживаемую schemaVersion.")
-    if payload.get("deploymentTag") != expected_deployment_tag:
-        raise RuntimeError(
-            "Component lock предназначен для "
-            f"{payload.get('deploymentTag')}, а выбран тег {expected_deployment_tag}."
-        )
-
-    components: list[object] = [payload.get("runtime"), payload.get("web")]
-    node = payload.get("node")
-    if not isinstance(node, dict) or not node:
-        raise RuntimeError("Component lock не содержит Node-компоненты.")
-    components.extend(node.values())
-    modules = payload.get("modules")
-    if not isinstance(modules, list) or not modules:
-        raise RuntimeError("Component lock не содержит список модулей.")
-    components.extend(modules)
+    lock_path, payload = load_release_lock(
+        deployment_repository,
+        expected_deployment_tag,
+    )
+    components = deployment_lock_components(lock_path, payload)
 
     releases: dict[str, str] = {}
     for component in components:
         if not isinstance(component, dict):
-            raise RuntimeError("Component lock содержит некорректную запись компонента.")
+            raise RuntimeError(
+                f"Component lock {lock_path} содержит некорректную запись компонента."
+            )
         repository = component.get("repository")
         tag = component.get("tag")
         if not isinstance(repository, str) or not repository.strip():
-            raise RuntimeError("Component lock содержит компонент без repository.")
+            raise RuntimeError(
+                f"Component lock {lock_path} содержит компонент без repository."
+            )
         if (
             not isinstance(tag, str)
             or not tag.startswith("v")
             or any(character.isspace() for character in tag)
         ):
-            raise RuntimeError(f"Component lock содержит некорректный тег для {repository}.")
+            raise RuntimeError(
+                f"Component lock {lock_path} содержит некорректный тег для {repository}."
+            )
         if repository in releases:
-            raise RuntimeError(f"Component lock содержит дубликат repository: {repository}.")
+            raise RuntimeError(
+                f"Component lock {lock_path} содержит дубликат repository: {repository}."
+            )
         releases[repository] = tag
     return releases
 

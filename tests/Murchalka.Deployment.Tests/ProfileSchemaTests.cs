@@ -7,6 +7,34 @@ namespace Murchalka.Deployment.Tests;
 /// <summary>Verifies canonical profile and binding schemas.</summary>
 public sealed class ProfileSchemaTests
 {
+    /// <summary>Verifies the coordinated Phase 7 Client Runtime component set.</summary>
+    [Fact]
+    public void ClientRuntimeLockPinsEveryPhaseSevenRepository()
+    {
+        var root = RepositoryRootLocator.Find();
+        var document = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "releases", "client-runtime.lock.json")))!.AsObject();
+        var components = document["components"]!.AsArray();
+        var tags = components.ToDictionary(
+            value => value!["repository"]!.GetValue<string>(),
+            value => value!["tag"]!.GetValue<string>(),
+            StringComparer.Ordinal);
+        Assert.Equal(7, document["phase"]!.GetValue<int>());
+        Assert.Equal("v0.4.0", document["deploymentTag"]!.GetValue<string>());
+        Assert.Equal(10, tags.Count);
+        Assert.Equal("v0.4.1", tags["murchalka-client-runtime"]);
+        Assert.Equal("v0.4.1", tags["murchalka-web"]);
+        Assert.Equal("v0.4.1", tags["murchalka-desktop"]);
+        Assert.Equal("v0.4.2", tags["murchalka-module-client-diagnostics"]);
+        Assert.All(
+            tags.Where(component => component.Key is not (
+                "murchalka-client-runtime" or
+                "murchalka-web" or
+                "murchalka-desktop" or
+                "murchalka-module-client-diagnostics")),
+            component => Assert.Equal("v0.4.0", component.Value));
+        Assert.All(tags.Values, tag => Assert.Matches("^v[0-9]+\\.[0-9]+\\.[0-9]+$", tag));
+    }
+
     /// <summary>Verifies that the Minimal Core profile satisfies the canonical profile schema.</summary>
     [Fact]
     public void MinimalProfileIsValid()
