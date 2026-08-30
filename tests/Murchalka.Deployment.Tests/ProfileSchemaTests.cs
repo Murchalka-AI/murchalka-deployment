@@ -19,18 +19,26 @@ public sealed class ProfileSchemaTests
             value => value!["tag"]!.GetValue<string>(),
             StringComparer.Ordinal);
         Assert.Equal(7, document["phase"]!.GetValue<int>());
-        Assert.Equal("v0.4.0", document["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.4.1", document["deploymentTag"]!.GetValue<string>());
         Assert.Equal(10, tags.Count);
-        Assert.Equal("v0.4.1", tags["murchalka-client-runtime"]);
-        Assert.Equal("v0.4.1", tags["murchalka-web"]);
-        Assert.Equal("v0.4.1", tags["murchalka-desktop"]);
-        Assert.Equal("v0.4.2", tags["murchalka-module-client-diagnostics"]);
+        Assert.Equal("v0.4.1", tags["murchalka-module-protocol"]);
+        Assert.Equal("v0.4.1", tags["murchalka-module-sdk"]);
+        Assert.Equal("v0.4.1", tags["murchalka-runtime"]);
+        Assert.Equal("v0.4.2", tags["murchalka-client-runtime"]);
+        Assert.Equal("v0.4.2", tags["murchalka-web"]);
+        Assert.Equal("v0.4.2", tags["murchalka-desktop"]);
+        Assert.Equal("v0.4.3", tags["murchalka-module-client-diagnostics"]);
+        Assert.Equal("v0.4.1", tags["murchalka-deployment"]);
         Assert.All(
             tags.Where(component => component.Key is not (
+                "murchalka-module-protocol" or
+                "murchalka-module-sdk" or
+                "murchalka-runtime" or
                 "murchalka-client-runtime" or
                 "murchalka-web" or
                 "murchalka-desktop" or
-                "murchalka-module-client-diagnostics")),
+                "murchalka-module-client-diagnostics" or
+                "murchalka-deployment")),
             component => Assert.Equal("v0.4.0", component.Value));
         Assert.All(tags.Values, tag => Assert.Matches("^v[0-9]+\\.[0-9]+\\.[0-9]+$", tag));
     }

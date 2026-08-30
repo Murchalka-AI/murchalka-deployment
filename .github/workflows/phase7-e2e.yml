@@ -8,7 +8,7 @@ on:
       MURCHALKA_BUNDLE_SIGNING_KEY_ID: { required: true }
   workflow_dispatch:
     inputs:
-      tag: { required: true, default: v0.4.0 }
+      tag: { required: true, default: v0.4.1 }
 permissions:
   contents: read
   packages: read
@@ -51,7 +51,10 @@ jobs:
           npx playwright test e2e/phase7.spec.ts
       - name: Verify cross-platform Desktop shell
         working-directory: components/desktop
-        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node node_modules/electron/install.js
+          npm run check
       - uses: actions/setup-dotnet@v6
         with: { global-json-file: global.json }
       - name: Authenticate package and container registries
@@ -80,7 +83,9 @@ jobs:
           if [[ -r "${restriction}" && "$(<"${restriction}")" == 1 ]]; then sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0; fi
       - name: Install signed bundle into an already-built Runtime
         env:
-          MURCHALKA_RUNTIME_IMAGE: ghcr.io/murchalka-ai/murchalka-runtime:0.4.0
+          MURCHALKA_RUNTIME_IMAGE: ghcr.io/murchalka-ai/murchalka-runtime:0.4.1
           PHASE7_BUNDLE_DIR: ${{ github.workspace }}/artifacts/bundles
           PHASE7_SECURITY_DIR: ${{ github.workspace }}/artifacts/security
+          PHASE7_WEB_DIR: ${{ github.workspace }}/components/web
+          PHASE7_DESKTOP_DIR: ${{ github.workspace }}/components/desktop
         run: scripts/phase7-e2e.sh

@@ -16,7 +16,7 @@ trap cleanup EXIT
 
 runtime=http://127.0.0.1:15078
 for _ in {1..90}; do if curl --fail --silent "${runtime}/health" >/dev/null; then break; fi; sleep 1; done
-curl --fail --silent "${runtime}/health" | jq -e '.runtimeVersion == "0.4.0"' >/dev/null
+curl --fail --silent "${runtime}/health" | jq -e '.runtimeVersion == "0.4.1"' >/dev/null
 catalog="$(curl --fail --silent "${runtime}/client/v1/catalog")"
 revision="$(jq -er '.revision' <<<"${catalog}")"
 jq -e '.entries | length == 1 and .[0].extensionId == "client.diagnostics" and .[0].targets == ["desktop", "web"]' <<<"${catalog}" >/dev/null
@@ -29,6 +29,23 @@ curl --fail --silent "${runtime}${artifact_url}" --output "${artifact_file}"
 admin_token="$(tr -d '\r\n' < "${PHASE7_SECURITY_DIR}/admin-token")"
 action='{"payload":{"extensionId":"client.diagnostics","actionId":"client.diagnostics.run","payload":{"message":"Phase 7"}},"idempotencyKey":"phase7-acceptance","scope":{"personId":"phase7-person"}}'
 curl --fail --silent --header "Authorization: Bearer ${admin_token}" --header 'Content-Type: application/json' --data "${action}" "${runtime}/v1/capabilities/client.diagnostics.action/invoke" | jq -e '.accepted == true and .diagnosticValue == 7' >/dev/null
+
+if [[ -n "${PHASE7_WEB_DIR:-}" ]]; then
+  [[ -d "${PHASE7_WEB_DIR}" ]] || { echo "PHASE7_WEB_DIR must identify the built Web repository." >&2; exit 2; }
+  (
+    cd "${PHASE7_WEB_DIR}"
+    PHASE7_RUNTIME_ORIGIN="${runtime}" PHASE7_ADMIN_TOKEN="${admin_token}" npx playwright test e2e/phase7-runtime.spec.ts
+  )
+fi
+
+if [[ -n "${PHASE7_DESKTOP_DIR:-}" ]]; then
+  command -v xvfb-run >/dev/null || { echo "xvfb-run is required for Desktop acceptance." >&2; exit 2; }
+  [[ -d "${PHASE7_DESKTOP_DIR}" ]] || { echo "PHASE7_DESKTOP_DIR must identify the built Desktop repository." >&2; exit 2; }
+  (
+    cd "${PHASE7_DESKTOP_DIR}"
+    PHASE7_RUNTIME_ORIGIN="${runtime}" PHASE7_ADMIN_TOKEN="${admin_token}" xvfb-run -a npx playwright test e2e/phase7.spec.ts
+  )
+fi
 
 curl --fail --silent --request POST --header "Authorization: Bearer ${admin_token}" "${runtime}/v1/modules/dev.murchalka.client-diagnostics/disable" >/dev/null
 disabled="$(curl --fail --silent "${runtime}/client/v1/catalog")"
