@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "capability",
+    "received"
+  ],
+  "properties": {
+    "ok": {
+      "const": true
+    },
+    "capability": {
+      "type": "string"
+    },
+    "received": {
+      "type": "object"
+    }
+  }
+}
+

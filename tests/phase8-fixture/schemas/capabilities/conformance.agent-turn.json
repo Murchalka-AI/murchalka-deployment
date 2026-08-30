@@ -1,0 +1,42 @@
+{
+  "apiVersion": "capabilities.murchalka.dev/v1",
+  "kind": "CapabilityContract",
+  "metadata": {
+    "id": "conformance.agent-turn",
+    "version": "1.0.0",
+    "category": "agent.runtime",
+    "description": "Returns a bounded A2A conformance artifact."
+  },
+  "request": {
+    "schema": "conformance.agent-turn.request.schema.json"
+  },
+  "response": {
+    "schema": "conformance.agent-turn.response.schema.json"
+  },
+  "semantics": {
+    "interaction": "requestResponse",
+    "sideEffect": "none",
+    "idempotency": "required",
+    "streaming": false,
+    "cancellation": "required",
+    "defaultTimeout": "30s",
+    "maxPayloadBytes": 65536
+  },
+  "security": {
+    "inputDataClasses": [
+      "untrusted"
+    ],
+    "outputDataClasses": [
+      "internal"
+    ],
+    "requiredPurpose": "external-protocol-request"
+  },
+  "errors": [
+    {
+      "code": "deadline-exceeded",
+      "retryable": true,
+      "description": "The bounded conformance operation timed out."
+    }
+  ]
+}
+

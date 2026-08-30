@@ -1,0 +1,14 @@
+apiVersion: profiles.murchalka.dev/v1
+kind: RuntimeProfile
+metadata: { id: protocol-modules, version: 0.5.0 }
+modules:
+  required:
+    - { id: dev.murchalka.protocol-gateway, version: ">=0.5.0 <0.6.0" }
+    - { id: dev.murchalka.protocol-mcp, version: ">=0.5.0 <0.6.0" }
+    - { id: dev.murchalka.protocol-a2a, version: ">=0.5.0 <0.6.0" }
+  optional: []
+bindings: []
+permissionsPolicy:
+  trustedPublishers: [dev.murchalka]
+  autoApprove: { dataClasses: [public, internal, personal, sensitive], network: [] }
+activation: { autoInstallMissingFromRegistry: false, autoUpdateChannel: none }

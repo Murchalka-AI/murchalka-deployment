@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Solution Items/"><File Path="Directory.Build.props" /><File Path="Directory.Packages.props" /><File Path="README.md" /></Folder>
   <Folder Name="/tests/"><Project Path="tests/Murchalka.Deployment.Tests/Murchalka.Deployment.Tests.csproj" /></Folder>
+  <Folder Name="/tests/phase8-fixture/"><Project Path="tests/phase8-fixture/src/Murchalka.Phase8.ConformanceModule/Murchalka.Phase8.ConformanceModule.csproj" /></Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Murchalka.Deployment.Security/Murchalka.Deployment.Security.csproj" />
     <Project Path="tools/Murchalka.Phase5.Acceptance/Murchalka.Phase5.Acceptance.csproj" />

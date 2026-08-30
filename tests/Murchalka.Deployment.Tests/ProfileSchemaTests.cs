@@ -7,6 +7,42 @@ namespace Murchalka.Deployment.Tests;
 /// <summary>Verifies canonical profile and binding schemas.</summary>
 public sealed class ProfileSchemaTests
 {
+    /// <summary>Verifies the coordinated Phase 8 protocol component set and release versions.</summary>
+    [Fact]
+    public void ProtocolModulesLockPinsEveryPhaseEightRepository()
+    {
+        var root = RepositoryRootLocator.Find();
+        var document = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "releases", "protocol-modules.lock.json")))!.AsObject();
+        var tags = document["components"]!.AsArray().ToDictionary(
+            value => value!["repository"]!.GetValue<string>(),
+            value => value!["tag"]!.GetValue<string>(),
+            StringComparer.Ordinal);
+
+        Assert.Equal(8, document["phase"]!.GetValue<int>());
+        Assert.Equal("v0.5.0", document["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.5.0", tags["murchalka-module-protocol"]);
+        Assert.Equal("v0.5.0", tags["murchalka-module-sdk"]);
+        Assert.Equal("v0.5.0", tags["murchalka-runtime"]);
+        Assert.Equal("v0.5.0", tags["murchalka-module-protocol-gateway"]);
+        Assert.Equal("v0.5.0", tags["murchalka-module-protocol-mcp"]);
+        Assert.Equal("v0.5.0", tags["murchalka-module-protocol-a2a"]);
+        Assert.Equal("v0.4.3", tags["murchalka-client-runtime"]);
+        Assert.Equal("v0.4.3", tags["murchalka-web"]);
+        Assert.Equal("v0.4.3", tags["murchalka-desktop"]);
+        Assert.Equal("v0.5.0", tags["murchalka-admin"]);
+        Assert.Equal("v0.5.0", tags["murchalka-deployment"]);
+    }
+
+    /// <summary>Verifies that the protocol profile satisfies the canonical profile schema.</summary>
+    [Fact]
+    public void ProtocolProfileIsValid()
+    {
+        var root = RepositoryRootLocator.Find();
+        var document = StructuredDocument.Load(Path.Combine(root, "profiles", "protocols", "murchalka.profile.yaml"));
+        var report = CanonicalSchemaValidator.CreateBundled().ValidateJson("profile.schema.json", document);
+
+        Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Violations.Select(value => value.Message)));
+    }
     /// <summary>Verifies the coordinated Phase 7 Client Runtime component set.</summary>
     [Fact]
     public void ClientRuntimeLockPinsEveryPhaseSevenRepository()

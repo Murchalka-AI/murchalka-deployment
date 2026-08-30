@@ -20,6 +20,29 @@ SPEC.loader.exec_module(COORDINATED_RELEASE)
 class ComponentLockTests(unittest.TestCase):
     """Verify current and legacy deployment component-lock formats."""
 
+    def test_orders_phase8_dependency_waves(self) -> None:
+        """Release protocol, SDK, services, and deployment in dependency order."""
+        self.assertEqual(
+            COORDINATED_RELEASE.release_wave(Path("murchalka-module-protocol")),
+            0,
+        )
+        self.assertEqual(
+            COORDINATED_RELEASE.release_wave(Path("murchalka-module-sdk")),
+            1,
+        )
+        self.assertEqual(
+            COORDINATED_RELEASE.release_wave(Path("murchalka-runtime")),
+            2,
+        )
+        self.assertEqual(
+            COORDINATED_RELEASE.release_wave(Path("murchalka-module-protocol-mcp")),
+            2,
+        )
+        self.assertEqual(
+            COORDINATED_RELEASE.release_wave(Path("murchalka-deployment")),
+            3,
+        )
+
     def test_selects_current_components_lock_by_deployment_tag(self) -> None:
         """Select the Phase 7 lock and return every pinned component release."""
         with tempfile.TemporaryDirectory() as temporary_directory:

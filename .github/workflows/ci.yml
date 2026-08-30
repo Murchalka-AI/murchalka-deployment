@@ -31,6 +31,7 @@ jobs:
       - run: docker compose --env-file .env.example -f compose/compose.yaml -f compose/compose.macos.yaml config --quiet
       - run: NODE_CA_PASSWORD=validation NODE_ADMIN_TOKEN=validation NODE_ENROLLMENT_TOKEN=validation MURCHALKA_NODE_CONTROLLER_IMAGE=controller:0.3.0 MURCHALKA_NODE_RUNTIME_IMAGE=node:0.3.0 docker compose -f compose/compose.phase6.yaml config --quiet
       - run: MURCHALKA_RUNTIME_IMAGE=runtime:0.4.1 PHASE7_BUNDLE_DIR=/tmp/bundles PHASE7_SECURITY_DIR=/tmp/security docker compose -f compose/compose.phase7.yaml config --quiet
-      - run: bash -n scripts/install-bundle.sh scripts/bootstrap.sh scripts/prepare-security.sh scripts/prepare-node-security.sh scripts/phase5-e2e.sh scripts/phase6-e2e.sh scripts/phase7-e2e.sh
+      - run: MURCHALKA_RUNTIME_IMAGE=runtime:0.5.0 PHASE8_BUNDLE_DIR=/tmp/bundles PHASE8_SECURITY_DIR=/tmp/security docker compose -f compose/compose.phase8.yaml config --quiet
+      - run: bash -n scripts/install-bundle.sh scripts/bootstrap.sh scripts/prepare-security.sh scripts/prepare-node-security.sh scripts/phase5-e2e.sh scripts/phase6-e2e.sh scripts/phase7-e2e.sh scripts/phase8-e2e.sh
       - run: PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/pycache" python3 -m py_compile scripts/coordinated-release.py scripts/tests/test_coordinated_release.py
       - run: PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/pycache" python3 -m unittest discover -s scripts/tests -p 'test_*.py'

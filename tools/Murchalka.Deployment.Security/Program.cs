@@ -20,6 +20,8 @@ internal static class Program
                 Required(options, "bundles"),
                 Required(options, "publisher-key"),
                 Required(options, "publisher-key-id"),
+                options.GetValueOrDefault("additional-publisher-key"),
+                options.GetValueOrDefault("additional-publisher-key-id"),
                 Required(options, "grant-private-key"),
                 options.GetValueOrDefault("grant-key-id", "local-grants"),
                 Required(options, "output"));
@@ -36,26 +38,40 @@ internal static class Program
         string bundlesPath,
         string publisherKeyPath,
         string publisherKeyId,
+        string? additionalPublisherKeyPath,
+        string? additionalPublisherKeyId,
         string grantPrivateKeyPath,
         string grantKeyId,
         string outputPath)
     {
         ValidateIdentifier(publisherKeyId, nameof(publisherKeyId));
         ValidateIdentifier(grantKeyId, nameof(grantKeyId));
+        if ((additionalPublisherKeyPath is null) != (additionalPublisherKeyId is null))
+            throw new ArgumentException("Additional publisher key path and identifier must be supplied together.");
+        if (additionalPublisherKeyId is not null)
+        {
+            ValidateIdentifier(additionalPublisherKeyId, nameof(additionalPublisherKeyId));
+            if (additionalPublisherKeyId == publisherKeyId) throw new ArgumentException("Publisher key identifiers must be unique.");
+        }
         if (!Directory.Exists(bundlesPath)) throw new DirectoryNotFoundException($"Bundle directory '{bundlesPath}' was not found.");
 
         var bundlePaths = Directory.GetFiles(bundlesPath, "*.murchalka", SearchOption.TopDirectoryOnly);
         if (bundlePaths.Length == 0) throw new InvalidDataException("No .murchalka bundles were found.");
         var bundles = bundlePaths.Order(StringComparer.Ordinal).Select(ReadBundle).ToArray();
-        if (bundles.Select(value => value.ModuleId).Distinct(StringComparer.Ordinal).Count() != bundles.Length)
-            throw new InvalidDataException("The bundle directory contains duplicate module identities.");
-        if (bundles.Any(value => value.Publisher != Publisher || value.PublisherKeyId != publisherKeyId))
-            throw new InvalidDataException("Every bundle must use the configured dev.murchalka publisher and publisher key identifier.");
-
+        if (bundles.Select(value => value.ModuleId + "@" + value.Version).Distinct(StringComparer.Ordinal).Count() != bundles.Length)
+            throw new InvalidDataException("The bundle directory contains duplicate module identity and version pairs.");
+        if (bundles.Where(value => !IsEffectivelyEmpty(value.Permissions)).GroupBy(value => value.ModuleId, StringComparer.Ordinal).Any(group => group.Count() > 1))
+            throw new InvalidDataException("Multiple permission-bearing bundle versions for one module cannot share one generated grant file.");
         using var publisherKey = ReadPublicKey(publisherKeyPath);
+        using var additionalPublisherKey = additionalPublisherKeyPath is null ? null : ReadPublicKey(additionalPublisherKeyPath);
+        var publisherKeys = new Dictionary<string, ECDsa>(StringComparer.Ordinal) { [publisherKeyId] = publisherKey };
+        if (additionalPublisherKeyId is not null && additionalPublisherKey is not null)
+            publisherKeys.Add(additionalPublisherKeyId, additionalPublisherKey);
+        if (bundles.Any(value => value.Publisher != Publisher || !publisherKeys.ContainsKey(value.PublisherKeyId)))
+            throw new InvalidDataException("Every bundle must use the configured dev.murchalka publisher and an explicitly trusted publisher key identifier.");
         foreach (var bundle in bundles)
         {
-            if (!publisherKey.VerifyData(bundle.SignedContent, bundle.Signature, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence))
+            if (!publisherKeys[bundle.PublisherKeyId].VerifyData(bundle.SignedContent, bundle.Signature, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence))
                 throw new CryptographicException($"Bundle signature for '{bundle.ModuleId}' is invalid for the configured publisher key.");
         }
 
@@ -71,10 +87,8 @@ internal static class Program
             {
                 [Publisher] = new JsonObject
                 {
-                    ["keys"] = new JsonObject
-                    {
-                        [publisherKeyId] = KeyDocument(publisherKey.ExportSubjectPublicKeyInfoPem())
-                    }
+                    ["keys"] = new JsonObject(publisherKeys.Select(pair =>
+                        KeyValuePair.Create<string, JsonNode?>(pair.Key, KeyDocument(pair.Value.ExportSubjectPublicKeyInfoPem()))))
                 }
             },
             ["grantAuthorities"] = new JsonObject
@@ -173,7 +187,7 @@ internal static class Program
                 ["expiresAt"] = null,
                 ["issuedBy"] = "local-deployment"
             },
-            ["grant"] = bundle.Permissions.DeepClone(),
+            ["grant"] = CompactPermissions(bundle.Permissions),
             ["constraints"] = new JsonObject()
         };
         var signature = key.SignData(CanonicalJson.Serialize(document), HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
@@ -278,10 +292,22 @@ internal static class Program
         _ => false
     };
 
+    private static JsonObject CompactPermissions(JsonNode permissions)
+    {
+        var result = new JsonObject();
+        foreach (var pair in permissions.AsObject())
+        {
+            if (IsEffectivelyEmpty(pair.Value)) continue;
+            result[pair.Key] = pair.Value?.DeepClone();
+        }
+
+        return result;
+    }
+
     private static Dictionary<string, string> ParseOptions(string[] args)
     {
         if (args.Length == 0 || args.Length % 2 != 0)
-            throw new ArgumentException("Usage: --bundles DIR --publisher-key FILE --publisher-key-id ID --grant-private-key FILE [--grant-key-id ID] --output DIR");
+            throw new ArgumentException("Usage: --bundles DIR --publisher-key FILE --publisher-key-id ID [--additional-publisher-key FILE --additional-publisher-key-id ID] --grant-private-key FILE [--grant-key-id ID] --output DIR");
         var options = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var index = 0; index < args.Length; index += 2)
         {

@@ -1,0 +1,55 @@
+name: murchalka-phase8
+services:
+  phase8-loader:
+    image: "${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE}"
+    user: "0"
+    entrypoint: [/bin/sh, -c]
+    command:
+      - >-
+        install -d -m 0700 /var/lib/murchalka/modules/inbox /var/lib/murchalka/configuration/grants &&
+        cp /bundles/*protocol-gateway*.murchalka /var/lib/murchalka/modules/inbox/ &&
+        cp /bundles/phase8-conformance-0.5.0-*.murchalka /var/lib/murchalka/modules/inbox/ &&
+        cp /security/admin-token /var/lib/murchalka/configuration/admin-token &&
+        cp /security/trusted-publishers.json /var/lib/murchalka/configuration/trusted-publishers.json &&
+        cp /security/grants/*.json /var/lib/murchalka/configuration/grants/ &&
+        chmod 0600 /var/lib/murchalka/configuration/admin-token /var/lib/murchalka/configuration/trusted-publishers.json /var/lib/murchalka/configuration/grants/*.json &&
+        chown -R "$${APP_UID}:$${APP_UID}" /var/lib/murchalka
+    read_only: true
+    network_mode: none
+    volumes:
+      - phase8-runtime-state:/var/lib/murchalka
+      - "${PHASE8_BUNDLE_DIR:?Set PHASE8_BUNDLE_DIR}:/bundles:ro"
+      - "${PHASE8_SECURITY_DIR:?Set PHASE8_SECURITY_DIR}:/security:ro"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    restart: "no"
+  phase8-sandbox-probe:
+    image: "${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE}"
+    entrypoint: [/usr/local/libexec/murchalka-netns-exec]
+    command: [/usr/bin/bwrap, --die-with-parent, --new-session, --unshare-ipc, --unshare-pid, --unshare-uts, --cap-drop, ALL, --ro-bind, /, /, --proc, /proc, --dev, /dev, --, /usr/bin/true]
+    read_only: true
+    tmpfs: [/tmp]
+    userns_mode: host
+    security_opt: ["no-new-privileges:true", seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]
+    cap_drop: [ALL]
+    restart: "no"
+  phase8-runtime:
+    image: "${MURCHALKA_RUNTIME_IMAGE:?Pin MURCHALKA_RUNTIME_IMAGE}"
+    environment: { MURCHALKA_LINUX_NETWORK_ISOLATION: namespace-launcher }
+    command: [--root, /var/lib/murchalka, --url, "http://127.0.0.1:15078", --installation, phase8, --admin-token-file, /var/lib/murchalka/configuration/admin-token]
+    network_mode: host
+    read_only: true
+    tmpfs: [/tmp]
+    userns_mode: host
+    volumes:
+      - phase8-runtime-state:/var/lib/murchalka
+      - "${PHASE8_BUNDLE_DIR:?Set PHASE8_BUNDLE_DIR}:/release-bundles:ro"
+    security_opt: ["no-new-privileges:true", seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]
+    cap_drop: [ALL]
+    restart: "no"
+    depends_on:
+      phase8-loader: { condition: service_completed_successfully }
+      phase8-sandbox-probe: { condition: service_completed_successfully }
+volumes:
+  phase8-runtime-state: {}

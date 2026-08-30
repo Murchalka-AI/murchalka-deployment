@@ -1,0 +1,18 @@
+apiVersion: modules.murchalka.dev/v1
+kind: Module
+metadata: { id: dev.murchalka.phase8-conformance, name: Phase 8 Conformance Fixture, version: 0.5.0, publisher: dev.murchalka, description: Acceptance-only provider for protocol conformance., license: Apache-2.0 }
+compatibility: { moduleSdk: ">=0.5.0 <0.6.0", runtime: ">=0.5.0 <0.6.0", moduleProtocol: "1" }
+artifacts:
+  runtime:
+    - { id: conformance-process, mode: process, os: [linux], architectures: [x64], entrypoint: runtime/process/Murchalka.Phase8.ConformanceModule, digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000", protocolVersion: 1 }
+provides:
+  capabilities:
+    - { id: conformance.echo, category: tool.callable, version: 1.0.0, contract: schemas/capabilities/conformance.echo.json, cardinality: manyConsumers, scope: [global, module], execution: { kind: requestResponse, idempotency: required, timeout: 30s } }
+    - { id: conformance.agent-turn, category: agent.runtime, version: 1.0.0, contract: schemas/capabilities/conformance.agent-turn.json, cardinality: manyConsumers, scope: [global, person, session, module], execution: { kind: requestResponse, idempotency: required, timeout: 30s } }
+health:
+  startupTimeout: 15s
+  readiness: { interval: 2s, timeout: 2s, failureThreshold: 3 }
+  liveness: { interval: 30s, timeout: 2s, failureThreshold: 3 }
+activation: { mode: automaticWhenTrusted, failurePolicy: rollback, hotReload: true, drainTimeout: 10s }
+upgrade: { strategy: sideBySide, rollbackWindow: 1d, stateMigration: none }
+

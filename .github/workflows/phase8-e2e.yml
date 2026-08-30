@@ -1,0 +1,112 @@
+name: Phase 8 E2E
+on:
+  workflow_call:
+    inputs:
+      tag: { required: true, type: string }
+    secrets:
+      BUNDLE_PUBLISHER_PUBLIC_KEY_PEM: { required: true }
+      MURCHALKA_BUNDLE_SIGNING_KEY_ID: { required: true }
+  workflow_dispatch:
+    inputs:
+      tag: { required: true, default: v0.5.0 }
+permissions:
+  contents: read
+  packages: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - name: Validate coordinated lock
+        env: { RELEASE_TAG: "${{ inputs.tag }}" }
+        run: test "$(jq -r '.deploymentTag' releases/protocol-modules.lock.json)" = "${RELEASE_TAG}"
+      - id: components
+        name: Resolve component tags
+        shell: bash
+        run: |
+          lock='releases/protocol-modules.lock.json'
+          for component in gateway mcp a2a; do
+            repository="murchalka-module-protocol-${component}"
+            echo "${component}=$(jq -er --arg repository "${repository}" '.components[] | select(.repository == $repository) | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+          done
+          echo "client_runtime=$(jq -er '.components[] | select(.repository == "murchalka-client-runtime") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "web=$(jq -er '.components[] | select(.repository == "murchalka-web") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+          echo "desktop=$(jq -er '.components[] | select(.repository == "murchalka-desktop") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+      - uses: actions/checkout@v7
+        with: { repository: Murchalka-AI/murchalka-client-runtime, ref: "${{ steps.components.outputs.client_runtime }}", path: components/client-runtime, persist-credentials: false }
+      - uses: actions/checkout@v7
+        with: { repository: Murchalka-AI/murchalka-web, ref: "${{ steps.components.outputs.web }}", path: components/web, persist-credentials: false }
+      - uses: actions/checkout@v7
+        with: { repository: Murchalka-AI/murchalka-desktop, ref: "${{ steps.components.outputs.desktop }}", path: components/desktop, persist-credentials: false }
+      - uses: actions/checkout@v7
+        with: { repository: Murchalka-AI/murchalka-module-protocol-gateway, ref: "${{ steps.components.outputs.gateway }}", path: components/gateway-source, persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: 24 }
+      - name: Verify shared TypeScript Client Runtime
+        working-directory: components/client-runtime
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check:ts
+      - name: Verify Web host
+        working-directory: components/web
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check
+      - name: Verify cross-platform Desktop host
+        working-directory: components/desktop
+        run: npm ci --ignore-scripts --no-audit --no-fund && node node_modules/electron/install.js && npm run check
+      - uses: actions/setup-dotnet@v6
+        with: { global-json-file: global.json }
+      - name: Authenticate package and container registries
+        env: { PACKAGE_TOKEN: "${{ github.token }}" }
+        run: |
+          dotnet nuget update source murchalka --username "${GITHUB_ACTOR}" --password "${PACKAGE_TOKEN}" --store-password-in-clear-text --configfile NuGet.Config
+          echo "${PACKAGE_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+      - name: Download signed protocol bundles
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          mkdir -p artifacts/bundles
+          gh release download "${{ steps.components.outputs.gateway }}" --repo Murchalka-AI/murchalka-module-protocol-gateway --pattern '*-linux-x64.murchalka' --dir artifacts/bundles
+          gh release download "${{ steps.components.outputs.mcp }}" --repo Murchalka-AI/murchalka-module-protocol-mcp --pattern '*-linux-x64.murchalka' --dir artifacts/bundles
+          gh release download "${{ steps.components.outputs.a2a }}" --repo Murchalka-AI/murchalka-module-protocol-a2a --pattern '*-linux-x64.murchalka' --dir artifacts/bundles
+      - name: Build ephemeral protocol conformance provider
+        shell: bash
+        run: |
+          project=tests/phase8-fixture/src/Murchalka.Phase8.ConformanceModule/Murchalka.Phase8.ConformanceModule.csproj
+          dotnet restore "${project}" --runtime linux-x64 --configfile NuGet.Config
+          dotnet publish "${project}" --configuration Release --runtime linux-x64 --self-contained false --no-restore --output artifacts/fixture-publish
+          umask 077
+          openssl ecparam -name prime256v1 -genkey -noout -out "${RUNNER_TEMP}/fixture-publisher.pem"
+          mkdir -p tests/phase8-fixture/packaging
+          cp components/gateway-source/packaging/generate-sbom.sh tests/phase8-fixture/packaging/generate-sbom.sh
+          bash components/gateway-source/packaging/package.sh tests/phase8-fixture artifacts/fixture-publish "${RUNNER_TEMP}/fixture-publisher.pem" phase8-fixture 0.5.0 linux x64 "${GITHUB_SHA}" Murchalka.Phase8.ConformanceModule artifacts/bundles/phase8-conformance-0.5.0-linux-x64.murchalka
+          dotnet publish "${project}" --configuration Release --runtime linux-x64 --self-contained false --no-restore --output artifacts/fixture-candidate -p:Version=0.5.1
+          bash components/gateway-source/packaging/package.sh tests/phase8-fixture artifacts/fixture-candidate "${RUNNER_TEMP}/fixture-publisher.pem" phase8-fixture 0.5.1 linux x64 "${GITHUB_SHA}" Murchalka.Phase8.ConformanceModule artifacts/bundles/phase8-conformance-0.5.1-linux-x64.murchalka
+          cp -R tests/phase8-fixture "${RUNNER_TEMP}/phase8-incompatible"
+          sed -i 's/dev.murchalka.phase8-conformance/dev.murchalka.phase8-incompatible/' "${RUNNER_TEMP}/phase8-incompatible/murchalka.module.yaml"
+          sed -i 's/runtime: ">=0.5.0 <0.6.0"/runtime: ">=9.0.0 <10.0.0"/' "${RUNNER_TEMP}/phase8-incompatible/murchalka.module.yaml"
+          bash components/gateway-source/packaging/package.sh "${RUNNER_TEMP}/phase8-incompatible" artifacts/fixture-publish "${RUNNER_TEMP}/fixture-publisher.pem" phase8-fixture 0.5.0 linux x64 "${GITHUB_SHA}" Murchalka.Phase8.ConformanceModule artifacts/bundles/phase8-incompatible-0.5.0-linux-x64.murchalka
+          for variant in unsigned corrupt; do
+            cp -R tests/phase8-fixture "${RUNNER_TEMP}/phase8-${variant}"
+            sed -i "s/dev.murchalka.phase8-conformance/dev.murchalka.phase8-${variant}/" "${RUNNER_TEMP}/phase8-${variant}/murchalka.module.yaml"
+            bash components/gateway-source/packaging/package.sh "${RUNNER_TEMP}/phase8-${variant}" artifacts/fixture-publish "${RUNNER_TEMP}/fixture-publisher.pem" phase8-fixture 0.5.0 linux x64 "${GITHUB_SHA}" Murchalka.Phase8.ConformanceModule "artifacts/bundles/phase8-${variant}-source-0.5.0-linux-x64.murchalka"
+          done
+          openssl ec -in "${RUNNER_TEMP}/fixture-publisher.pem" -pubout -out "${RUNNER_TEMP}/fixture-publisher-public.pem"
+      - name: Verify signatures and prepare ephemeral grants
+        env:
+          PUBLISHER_PUBLIC_KEY: ${{ secrets.BUNDLE_PUBLISHER_PUBLIC_KEY_PEM }}
+          PUBLISHER_KEY_ID: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_ID }}
+        run: |
+          dotnet restore tools/Murchalka.Deployment.Security/Murchalka.Deployment.Security.csproj --configfile NuGet.Config
+          umask 077
+          printf '%s\n' "${PUBLISHER_PUBLIC_KEY}" > "${RUNNER_TEMP}/publisher.pem"
+          openssl ecparam -name prime256v1 -genkey -noout -out "${RUNNER_TEMP}/grant.pem"
+          dotnet run --project tools/Murchalka.Deployment.Security/Murchalka.Deployment.Security.csproj -c Release --no-restore -- --bundles artifacts/bundles --publisher-key "${RUNNER_TEMP}/publisher.pem" --publisher-key-id "${PUBLISHER_KEY_ID}" --additional-publisher-key "${RUNNER_TEMP}/fixture-publisher-public.pem" --additional-publisher-key-id phase8-fixture --grant-private-key "${RUNNER_TEMP}/grant.pem" --output artifacts/security
+      - name: Enable rootless namespace acceptance
+        run: |
+          restriction=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          if [[ -r "${restriction}" && "$(<"${restriction}")" == 1 ]]; then sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0; fi
+      - name: Install and exercise Protocol Modules
+        env:
+          MURCHALKA_RUNTIME_IMAGE: ghcr.io/murchalka-ai/murchalka-runtime:0.5.0
+          PHASE8_BUNDLE_DIR: ${{ github.workspace }}/artifacts/bundles
+          PHASE8_SECURITY_DIR: ${{ github.workspace }}/artifacts/security
+        run: scripts/phase8-e2e.sh

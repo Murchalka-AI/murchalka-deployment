@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Murchalka.Phase8.ConformanceModule</RootNamespace>
+    <AssemblyName>Murchalka.Phase8.ConformanceModule</AssemblyName>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Murchalka.ModuleSdk.ProcessHost" />
+  </ItemGroup>
+</Project>
+
