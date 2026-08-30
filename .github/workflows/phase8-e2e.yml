@@ -8,7 +8,7 @@ on:
       MURCHALKA_BUNDLE_SIGNING_KEY_ID: { required: true }
   workflow_dispatch:
     inputs:
-      tag: { required: true, default: v0.5.1 }
+      tag: { required: true, default: v0.5.2 }
 permissions:
   contents: read
   packages: read
@@ -78,8 +78,7 @@ jobs:
           project=tests/phase8-fixture/src/Murchalka.Phase8.ConformanceModule/Murchalka.Phase8.ConformanceModule.csproj
           dotnet restore "${project}" --runtime linux-x64 --configfile NuGet.Config
           dotnet publish "${project}" --configuration Release --runtime linux-x64 --self-contained false --no-restore --output artifacts/fixture-publish
-          umask 077
-          openssl ecparam -name prime256v1 -genkey -noout -out "${RUNNER_TEMP}/fixture-publisher.pem"
+          (umask 077; openssl ecparam -name prime256v1 -genkey -noout -out "${RUNNER_TEMP}/fixture-publisher.pem")
           mkdir -p tests/phase8-fixture/packaging
           cp components/gateway-source/packaging/generate-sbom.sh tests/phase8-fixture/packaging/generate-sbom.sh
           bash components/gateway-source/packaging/package.sh tests/phase8-fixture artifacts/fixture-publish "${RUNNER_TEMP}/fixture-publisher.pem" phase8-fixture 0.5.0 linux x64 "${GITHUB_SHA}" Murchalka.Phase8.ConformanceModule artifacts/bundles/phase8-conformance-0.5.0-linux-x64.murchalka

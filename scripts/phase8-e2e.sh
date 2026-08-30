@@ -53,6 +53,9 @@ sed 's/"maximum": 30000/"maximum": 29999/' "${tampered_schema}" > "${tampered_sc
 mv "${tampered_schema}.tmp" "${tampered_schema}"
 cp "${PHASE8_BUNDLE_DIR}/phase8-corrupt-source-0.5.0-${target}.murchalka" "${corrupt_bundle}"
 (cd "${tamper_directory}" && zip -X -q -u "${corrupt_bundle}" schemas/capabilities/conformance.echo.request.schema.json)
+# Release bundles are public artifacts. CI builds fixtures under umask 077, while
+# Runtime intentionally runs as a different unprivileged user in the container.
+chmod a+r "${PHASE8_BUNDLE_DIR}"/*.murchalka
 
 "${compose[@]}" up --detach "${runtime_services[@]}"
 runtime=http://127.0.0.1:15078

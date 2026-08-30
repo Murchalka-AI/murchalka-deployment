@@ -19,7 +19,7 @@ public sealed class ProfileSchemaTests
             StringComparer.Ordinal);
 
         Assert.Equal(8, document["phase"]!.GetValue<int>());
-        Assert.Equal("v0.5.1", document["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.5.2", document["deploymentTag"]!.GetValue<string>());
         Assert.Equal("v0.5.0", tags["murchalka-module-protocol"]);
         Assert.Equal("v0.5.1", tags["murchalka-module-sdk"]);
         Assert.Equal("v0.5.0", tags["murchalka-runtime"]);
@@ -30,7 +30,7 @@ public sealed class ProfileSchemaTests
         Assert.Equal("v0.4.3", tags["murchalka-web"]);
         Assert.Equal("v0.4.3", tags["murchalka-desktop"]);
         Assert.Equal("v0.5.0", tags["murchalka-admin"]);
-        Assert.Equal("v0.5.1", tags["murchalka-deployment"]);
+        Assert.Equal("v0.5.2", tags["murchalka-deployment"]);
     }
 
     /// <summary>Verifies that the protocol profile satisfies the canonical profile schema.</summary>

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": 8,
-  "deploymentTag": "v0.5.1",
+  "deploymentTag": "v0.5.2",
   "components": [
     { "repository": "murchalka-module-protocol", "tag": "v0.5.0" },
     { "repository": "murchalka-module-sdk", "tag": "v0.5.1" },
@@ -13,6 +13,6 @@
     { "repository": "murchalka-web", "tag": "v0.4.3", "image": "ghcr.io/murchalka-ai/murchalka-web:0.4.3" },
     { "repository": "murchalka-desktop", "tag": "v0.4.3" },
     { "repository": "murchalka-admin", "tag": "v0.5.0" },
-    { "repository": "murchalka-deployment", "tag": "v0.5.1" }
+    { "repository": "murchalka-deployment", "tag": "v0.5.2" }
   ]
 }
