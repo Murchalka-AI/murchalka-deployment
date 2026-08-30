@@ -24,7 +24,7 @@
   },
   "security": {
     "inputDataClasses": [
-      "untrusted"
+      "public"
     ],
     "outputDataClasses": [
       "internal"
@@ -39,4 +39,3 @@
     }
   ]
 }
-

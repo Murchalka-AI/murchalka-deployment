@@ -62,7 +62,10 @@ if ! find "${repository_root}/runtime/modules/inbox" -maxdepth 1 -name '*.murcha
 fi
 
 "${compose[@]}" up -d ollama
-"${compose[@]}" exec -T ollama ollama pull "${MURCHALKA_OLLAMA_MODEL:-llama3.2:1b}"
+ollama_model="${MURCHALKA_OLLAMA_MODEL:-llama3.2:1b}"
+if ! "${compose[@]}" exec -T ollama ollama list | awk 'NR > 1 { print $1 }' | grep -Fxq "${ollama_model}"; then
+  "${compose[@]}" exec -T ollama ollama pull "${ollama_model}"
+fi
 "${compose[@]}" up -d "${runtime_services[@]}"
 
 runtime_container="$("${compose[@]}" ps -q runtime)"
@@ -139,7 +142,7 @@ done
   MURCHALKA_E2E_EVIDENCE="${evidence_file}" \
   MURCHALKA_E2E_BASE_URL="http://127.0.0.1:8080" \
   MURCHALKA_E2E_REALTIME_ENDPOINT="${realtime_url}" \
-  npm run test:e2e
+  npm run test:e2e -- e2e/phase5.spec.ts
 )
 
 dotnet run \

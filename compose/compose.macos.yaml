@@ -1,4 +1,16 @@
 services:
+  module-loader:
+    platform: linux/amd64
+
+  sandbox-probe:
+    platform: linux/amd64
+
+  runtime:
+    platform: linux/amd64
+
+  web:
+    platform: linux/amd64
+
   runtime-loopback-exporter:
     image: ${SOCAT_IMAGE:?Pin SOCAT_IMAGE in .env}
     network_mode: host

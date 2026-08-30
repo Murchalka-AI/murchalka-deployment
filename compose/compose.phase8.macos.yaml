@@ -1,0 +1,55 @@
+services:
+  phase8-loader:
+    platform: linux/amd64
+
+  phase8-sandbox-probe:
+    platform: linux/amd64
+
+  phase8-runtime:
+    platform: linux/amd64
+    command: [--root, /var/lib/murchalka, --url, "http://127.0.0.1:5078", --installation, phase8, --admin-token-file, /var/lib/murchalka/configuration/admin-token]
+
+  phase8-loopback-exporter:
+    image: ${SOCAT_IMAGE:?Pin SOCAT_IMAGE}
+    network_mode: host
+    entrypoint: [/bin/sh, -c]
+    command:
+      - |
+        socat TCP-LISTEN:25078,fork,reuseaddr TCP:127.0.0.1:5078 &
+        runtime_pid=$$!
+        socat TCP-LISTEN:25088,fork,reuseaddr TCP:127.0.0.1:5088 &
+        gateway_pid=$$!
+        trap 'kill "$$runtime_pid" "$$gateway_pid" 2>/dev/null || true' TERM INT
+        wait "$$runtime_pid" "$$gateway_pid"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+    depends_on:
+      phase8-runtime: { condition: service_started }
+
+  phase8-relay:
+    image: ${SOCAT_IMAGE:?Pin SOCAT_IMAGE}
+    entrypoint: [/bin/sh, -c]
+    command:
+      - |
+        socat TCP-LISTEN:5078,fork,reuseaddr TCP4:172.31.251.1:25078 &
+        runtime_pid=$$!
+        socat TCP-LISTEN:5088,fork,reuseaddr TCP4:172.31.251.1:25088 &
+        gateway_pid=$$!
+        trap 'kill "$$runtime_pid" "$$gateway_pid" 2>/dev/null || true' TERM INT
+        wait "$$runtime_pid" "$$gateway_pid"
+    ports: ["127.0.0.1:15078:5078", "127.0.0.1:15088:5088"]
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+    depends_on:
+      phase8-loopback-exporter: { condition: service_started }
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.251.0/24
+          gateway: 172.31.251.1

@@ -8,7 +8,7 @@ on:
       MURCHALKA_BUNDLE_SIGNING_KEY_ID: { required: true }
   workflow_dispatch:
     inputs:
-      tag: { required: true, default: v0.5.0 }
+      tag: { required: true, default: v0.5.1 }
 permissions:
   contents: read
   packages: read
@@ -29,8 +29,13 @@ jobs:
           lock='releases/protocol-modules.lock.json'
           for component in gateway mcp a2a; do
             repository="murchalka-module-protocol-${component}"
-            echo "${component}=$(jq -er --arg repository "${repository}" '.components[] | select(.repository == $repository) | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
+            tag="$(jq -er --arg repository "${repository}" '.components[] | select(.repository == $repository) | .tag' "${lock}")"
+            echo "${component}=${tag}" >> "${GITHUB_OUTPUT}"
+            echo "${component}_version=${tag#v}" >> "${GITHUB_OUTPUT}"
           done
+          runtime_tag="$(jq -er '.components[] | select(.repository == "murchalka-runtime") | .tag' "${lock}")"
+          echo "runtime_version=${runtime_tag#v}" >> "${GITHUB_OUTPUT}"
+          echo "runtime_image=$(jq -er '.components[] | select(.repository == "murchalka-runtime") | .image' "${lock}")" >> "${GITHUB_OUTPUT}"
           echo "client_runtime=$(jq -er '.components[] | select(.repository == "murchalka-client-runtime") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
           echo "web=$(jq -er '.components[] | select(.repository == "murchalka-web") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
           echo "desktop=$(jq -er '.components[] | select(.repository == "murchalka-desktop") | .tag' "${lock}")" >> "${GITHUB_OUTPUT}"
@@ -106,7 +111,13 @@ jobs:
           if [[ -r "${restriction}" && "$(<"${restriction}")" == 1 ]]; then sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0; fi
       - name: Install and exercise Protocol Modules
         env:
-          MURCHALKA_RUNTIME_IMAGE: ghcr.io/murchalka-ai/murchalka-runtime:0.5.0
+          MURCHALKA_RUNTIME_IMAGE: ${{ steps.components.outputs.runtime_image }}
+          PHASE8_RUNTIME_VERSION: ${{ steps.components.outputs.runtime_version }}
+          PHASE8_GATEWAY_VERSION: ${{ steps.components.outputs.gateway_version }}
+          PHASE8_MCP_VERSION: ${{ steps.components.outputs.mcp_version }}
+          PHASE8_A2A_VERSION: ${{ steps.components.outputs.a2a_version }}
+          PHASE8_TARGET_OS: linux
+          PHASE8_TARGET_ARCH: x64
           PHASE8_BUNDLE_DIR: ${{ github.workspace }}/artifacts/bundles
           PHASE8_SECURITY_DIR: ${{ github.workspace }}/artifacts/security
         run: scripts/phase8-e2e.sh

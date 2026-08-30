@@ -1,5 +1,7 @@
 # Release 0.5.0 — Protocol Modules
 
+> Superseded by the immutable `v0.5.1` fix-forward described in `release-0.5.1.md` after the Windows Gateway TLS gate and published ProcessHost package failed. Do not move or retry `v0.5.0` with changed content.
+
 Phase 8 adds a generic installable Protocol Gateway plus independent MCP and A2A bundles. Runtime validates and catalogs generic protocol contributions and grants the gateway only resolved handler endpoints; it contains no MCP or A2A parser or route.
 
 MCP exports and A2A skills are explicit configuration/grant intersections. Peer and outbound authentication are delegated to granted security adapters, external content remains untrusted, and private-network destinations are denied by default. Web and Desktop receive signed declarative Mini Apps without shell changes.

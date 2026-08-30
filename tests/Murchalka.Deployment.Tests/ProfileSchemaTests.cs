@@ -19,18 +19,18 @@ public sealed class ProfileSchemaTests
             StringComparer.Ordinal);
 
         Assert.Equal(8, document["phase"]!.GetValue<int>());
-        Assert.Equal("v0.5.0", document["deploymentTag"]!.GetValue<string>());
+        Assert.Equal("v0.5.1", document["deploymentTag"]!.GetValue<string>());
         Assert.Equal("v0.5.0", tags["murchalka-module-protocol"]);
-        Assert.Equal("v0.5.0", tags["murchalka-module-sdk"]);
+        Assert.Equal("v0.5.1", tags["murchalka-module-sdk"]);
         Assert.Equal("v0.5.0", tags["murchalka-runtime"]);
-        Assert.Equal("v0.5.0", tags["murchalka-module-protocol-gateway"]);
-        Assert.Equal("v0.5.0", tags["murchalka-module-protocol-mcp"]);
-        Assert.Equal("v0.5.0", tags["murchalka-module-protocol-a2a"]);
+        Assert.Equal("v0.5.1", tags["murchalka-module-protocol-gateway"]);
+        Assert.Equal("v0.5.1", tags["murchalka-module-protocol-mcp"]);
+        Assert.Equal("v0.5.1", tags["murchalka-module-protocol-a2a"]);
         Assert.Equal("v0.4.3", tags["murchalka-client-runtime"]);
         Assert.Equal("v0.4.3", tags["murchalka-web"]);
         Assert.Equal("v0.4.3", tags["murchalka-desktop"]);
         Assert.Equal("v0.5.0", tags["murchalka-admin"]);
-        Assert.Equal("v0.5.0", tags["murchalka-deployment"]);
+        Assert.Equal("v0.5.1", tags["murchalka-deployment"]);
     }
 
     /// <summary>Verifies that the protocol profile satisfies the canonical profile schema.</summary>
@@ -42,6 +42,42 @@ public sealed class ProfileSchemaTests
         var report = CanonicalSchemaValidator.CreateBundled().ValidateJson("profile.schema.json", document);
 
         Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Violations.Select(value => value.Message)));
+    }
+
+    /// <summary>Verifies that the Phase 8 acceptance provider and its capability contracts are valid.</summary>
+    [Fact]
+    public void PhaseEightConformanceManifestIsValid()
+    {
+        var root = RepositoryRootLocator.Find();
+        var document = StructuredDocument.Load(Path.Combine(root, "tests", "phase8-fixture", "murchalka.module.yaml"));
+        var report = CanonicalSchemaValidator.CreateBundled().ValidateJson("module-manifest.schema.json", document);
+
+        Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Violations.Select(value => value.Message)));
+
+        var contracts = Directory.GetFiles(
+            Path.Combine(root, "tests", "phase8-fixture", "schemas", "capabilities"),
+            "*.json",
+            SearchOption.TopDirectoryOnly).Where(path => !path.EndsWith(".schema.json", StringComparison.Ordinal));
+        Assert.All(contracts, path =>
+        {
+            var contract = JsonNode.Parse(File.ReadAllText(path))!;
+            var contractReport = CanonicalSchemaValidator.CreateBundled().ValidateJson("capability.schema.json", contract);
+            Assert.True(contractReport.IsValid, $"{Path.GetFileName(path)}:{Environment.NewLine}{string.Join(Environment.NewLine, contractReport.Violations.Select(value => value.Message))}");
+        });
+    }
+
+    /// <summary>Verifies that historical acceptance jobs stay pinned while the current phase follows the release tag.</summary>
+    [Fact]
+    public void ReleaseWorkflowPinsAcceptanceJobsToTheirComponentLocks()
+    {
+        var root = RepositoryRootLocator.Find();
+        var workflow = StructuredDocument.Load(Path.Combine(root, ".github", "workflows", "release.yml")).AsObject();
+        var jobs = workflow["jobs"]!.AsObject();
+
+        Assert.Equal(ReadDeploymentTag(root, "minimal-core.lock.json"), jobs["phase5-acceptance"]!["with"]!["tag"]!.GetValue<string>());
+        Assert.Equal(ReadDeploymentTag(root, "minimal-core.lock.json"), jobs["phase6-acceptance"]!["with"]!["tag"]!.GetValue<string>());
+        Assert.Equal(ReadDeploymentTag(root, "client-runtime.lock.json"), jobs["phase7-acceptance"]!["with"]!["tag"]!.GetValue<string>());
+        Assert.Equal("${{ github.ref_name }}", jobs["phase8-acceptance"]!["with"]!["tag"]!.GetValue<string>());
     }
     /// <summary>Verifies the coordinated Phase 7 Client Runtime component set.</summary>
     [Fact]
@@ -157,18 +193,20 @@ public sealed class ProfileSchemaTests
         Assert.All(lockedModules, module => Assert.Matches("^v[0-9]+\\.[0-9]+\\.[0-9]+$", module!["tag"]!.GetValue<string>()));
     }
 
-    /// <summary>Verifies that clean-install bootstrap documents start at revision one and use snapshot envelopes.</summary>
+    /// <summary>Verifies that profile configuration snapshots start at revision one and Minimal Core never bootstraps unrelated modules.</summary>
     [Fact]
-    public void BootstrapDocumentsStartAtFirstRevision()
+    public void ProfileBootstrapDocumentsAreIsolatedAndStartAtFirstRevision()
     {
         var root = RepositoryRootLocator.Find();
         var bindings = StructuredDocument.Load(Path.Combine(root, "bindings", "minimal.bindings.yaml")).AsObject();
         Assert.Equal(1, bindings["metadata"]!["revision"]!.GetValue<int>());
 
-        var configurationPaths = Directory.GetFiles(
-            Path.Combine(root, "configuration"),
-            "dev.murchalka.*.json",
-            SearchOption.TopDirectoryOnly);
+        var minimalConfigurationDirectory = Path.Combine(root, "configuration");
+        var configurationPaths = new[]
+        {
+            minimalConfigurationDirectory,
+            Path.Combine(root, "profiles", "protocols", "configuration")
+        }.SelectMany(path => Directory.GetFiles(path, "dev.murchalka.*.json", SearchOption.TopDirectoryOnly)).ToArray();
         Assert.NotEmpty(configurationPaths);
         Assert.All(configurationPaths, path =>
         {
@@ -176,6 +214,19 @@ public sealed class ProfileSchemaTests
             Assert.Equal(1, snapshot["revision"]!.GetValue<int>());
             Assert.IsType<JsonObject>(snapshot["values"]);
         });
+
+        var minimalModuleIds = StructuredDocument.Load(Path.Combine(root, "profiles", "minimal", "murchalka.profile.yaml"))["modules"]!["required"]!.AsArray()
+            .Select(module => module!["id"]!.GetValue<string>())
+            .ToHashSet(StringComparer.Ordinal);
+        var minimalConfigurationModuleIds = Directory.GetFiles(minimalConfigurationDirectory, "dev.murchalka.*.json", SearchOption.TopDirectoryOnly)
+            .Select(path => Path.GetFileNameWithoutExtension(path) ?? throw new InvalidDataException($"Configuration path '{path}' has no file name."));
+        Assert.All(minimalConfigurationModuleIds, moduleId => Assert.Contains(moduleId, minimalModuleIds));
+    }
+
+    private static string ReadDeploymentTag(string root, string lockFileName)
+    {
+        var document = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "releases", lockFileName)))!.AsObject();
+        return document["deploymentTag"]!.GetValue<string>();
     }
 
     /// <summary>Verifies that the Runtime container permits rootless Bubblewrap without restoring outer capabilities.</summary>

@@ -9,10 +9,10 @@ provides:
   capabilities:
     - { id: conformance.echo, category: tool.callable, version: 1.0.0, contract: schemas/capabilities/conformance.echo.json, cardinality: manyConsumers, scope: [global, module], execution: { kind: requestResponse, idempotency: required, timeout: 30s } }
     - { id: conformance.agent-turn, category: agent.runtime, version: 1.0.0, contract: schemas/capabilities/conformance.agent-turn.json, cardinality: manyConsumers, scope: [global, person, session, module], execution: { kind: requestResponse, idempotency: required, timeout: 30s } }
+permissions: {}
 health:
   startupTimeout: 15s
   readiness: { interval: 2s, timeout: 2s, failureThreshold: 3 }
   liveness: { interval: 30s, timeout: 2s, failureThreshold: 3 }
 activation: { mode: automaticWhenTrusted, failurePolicy: rollback, hotReload: true, drainTimeout: 10s }
 upgrade: { strategy: sideBySide, rollbackWindow: 1d, stateMigration: none }
-
